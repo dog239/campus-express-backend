@@ -7,19 +7,24 @@ USE campus_express;
 -- 用户表
 CREATE TABLE `user` (
     `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    `username` varchar(32) NOT NULL COMMENT '用户名',
-    `password` varchar(128) NOT NULL COMMENT '密码',
-    `phone` varchar(11) NOT NULL COMMENT '手机号',
+    `username` varchar(32) NOT NULL DEFAULT '' COMMENT '用户名',
+    `password` varchar(128) NOT NULL DEFAULT '' COMMENT '密码',
+    `phone` varchar(11) NOT NULL DEFAULT '' COMMENT '手机号',
     `nickname` varchar(32) DEFAULT '' COMMENT '昵称',
     `avatar` varchar(128) DEFAULT '' COMMENT '头像',
     `role` tinyint NOT NULL DEFAULT 0 COMMENT '角色 1:管理员 0:普通用户',
     `deleted` tinyint NOT NULL DEFAULT 0 COMMENT '是否删除 0:未删除 1:已删除',
     `update_time` datetime DEFAULT NULL COMMENT '更新时间',
     `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+    `openid` varchar(64) DEFAULT '' COMMENT '微信 openid',
     PRIMARY KEY (`id`),
     UNIQUE KEY `idx_username` (`username`),
-    UNIQUE KEY `idx_phone` (`phone`)
+    UNIQUE KEY `idx_phone` (`phone`),
+    UNIQUE KEY `idx_openid` (`openid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
+
+INSERT INTO `user` (`username`, `password`, `phone`, `nickname`, `avatar`, `role`, `openid`, `create_time`, `update_time`)
+VALUES ('demo_user', '123456', '13800138000', 'demo', '', 0, 'test-openid-001', NOW(), NOW());
 
 -- 快递表
 CREATE TABLE `package` (
