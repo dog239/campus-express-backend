@@ -4,7 +4,6 @@ import com.campusexpress.common.Result;
 import com.campusexpress.entity.User;
 import com.campusexpress.service.UserService;
 import com.campusexpress.util.JwtUtil;
-import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -12,11 +11,15 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/user")
-@RequiredArgsConstructor
 public class UserController {
 
     private final UserService userService;
     private final JwtUtil jwtUtil;
+
+    public UserController(UserService userService, JwtUtil jwtUtil) {
+        this.userService = userService;
+        this.jwtUtil = jwtUtil;
+    }
 
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody Map<String, String> request) {

@@ -29,18 +29,17 @@ VALUES ('demo_user', '123456', '13800138000', 'demo', '', 0, 'test-openid-001', 
 -- 快递表
 CREATE TABLE `package` (
     `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    `code` varchar(32) NOT NULL COMMENT '取件码',
-    `name` varchar(64) NOT NULL COMMENT '收件人姓名',
-    `phone` varchar(11) NOT NULL COMMENT '收件人手机号',
-    `address` varchar(128) NOT NULL COMMENT '收件地址',
-    `type` tinyint NOT NULL COMMENT '快递类型 1:顺丰 2:圆通 3:中通 4:申通 5:韵达 6:邮政 7:京东',
-    `status` tinyint NOT NULL DEFAULT 0 COMMENT '状态 0:待取件 1:已取件',
-    `remark` varchar(255) DEFAULT '' COMMENT '备注',
+    `user_id` bigint NOT NULL COMMENT '用户ID',
+    `pickup_code` varchar(32) NOT NULL COMMENT '取件码',
+    `station_name` varchar(32) NOT NULL COMMENT '驿站名称',
+    `arrival_date` date NOT NULL COMMENT '到站日期',
     `deleted` tinyint NOT NULL DEFAULT 0 COMMENT '是否删除 0:未删除 1:已删除',
     `update_time` datetime DEFAULT NULL COMMENT '更新时间',
     `create_time` datetime DEFAULT NULL COMMENT '创建时间',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `idx_code` (`code`)
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_station_name` (`station_name`),
+    UNIQUE KEY `idx_user_pickup_code` (`user_id`, `pickup_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='快递表';
 
 -- 订单表

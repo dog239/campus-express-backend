@@ -5,7 +5,6 @@ import com.campusexpress.config.WechatProperties;
 import com.campusexpress.entity.User;
 import com.campusexpress.mapper.UserMapper;
 import com.campusexpress.util.JwtUtil;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -14,7 +13,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 public class UserService {
 
     private final UserMapper userMapper;
@@ -22,6 +20,12 @@ public class UserService {
     private final WechatProperties wechatProperties;
 
     private final RestTemplate restTemplate = new RestTemplate();
+
+    public UserService(UserMapper userMapper, JwtUtil jwtUtil, WechatProperties wechatProperties) {
+        this.userMapper = userMapper;
+        this.jwtUtil = jwtUtil;
+        this.wechatProperties = wechatProperties;
+    }
 
     public Map<String, Object> login(String code) {
         if (code == null || code.trim().isEmpty()) {
