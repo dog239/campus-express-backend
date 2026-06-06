@@ -34,3 +34,10 @@ wechat:
   secret: your-wechat-secret
   session-url: https://api.weixin.qq.com/sns/jscode2session
   debug: true
+
+baidu:
+  ocr:
+    api-key: DTfR5EqnYhihCDUZ5mzuF5Ek
+    secret-key: rffIP39mmOoFF13tnpZHZ4IFYBiOqkHj
+    token-url: https://aip.baidubce.com/oauth/2.0/token
+    general-url: https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic
