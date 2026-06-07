@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.Version;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -57,6 +58,18 @@ public class Order {
     private Integer status;
 
     /**
+     * 发布者是否确认完成
+     */
+    @TableField("requester_confirm")
+    private Boolean requesterConfirm;
+
+    /**
+     * 接单者是否确认完成
+     */
+    @TableField("receiver_confirm")
+    private Boolean receiverConfirm;
+
+    /**
      * 拍照存证URL
      */
     @TableField("photo_url")
@@ -73,6 +86,12 @@ public class Order {
      */
     @TableField("complete_time")
     private LocalDateTime completeTime;
+
+    /**
+     * 乐观锁版本号
+     */
+    @Version
+    private Integer version;
 
     // Getter and Setter methods
 
@@ -154,5 +173,29 @@ public class Order {
 
     public void setCompleteTime(LocalDateTime completeTime) {
         this.completeTime = completeTime;
+    }
+
+    public Boolean getRequesterConfirm() {
+        return requesterConfirm;
+    }
+
+    public void setRequesterConfirm(Boolean requesterConfirm) {
+        this.requesterConfirm = requesterConfirm;
+    }
+
+    public Boolean getReceiverConfirm() {
+        return receiverConfirm;
+    }
+
+    public void setReceiverConfirm(Boolean receiverConfirm) {
+        this.receiverConfirm = receiverConfirm;
+    }
+
+    public Integer getVersion() {
+        return version;
+    }
+
+    public void setVersion(Integer version) {
+        this.version = version;
     }
 }

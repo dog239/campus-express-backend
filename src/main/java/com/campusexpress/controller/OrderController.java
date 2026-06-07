@@ -7,19 +7,17 @@ import com.campusexpress.service.OrderService;
 import com.campusexpress.service.UserService;
 import com.campusexpress.util.JwtUtil;
 import com.campusexpress.vo.AvailableOrderVO;
+import com.campusexpress.vo.OrderDetailVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * 订单控制器
- * 处理订单相关的HTTP请求
- */
 @RestController
 @RequestMapping("/api/order")
 @Tag(name = "Order Management", description = "Order APIs")
@@ -35,23 +33,14 @@ public class OrderController {
         this.jwtUtil = jwtUtil;
     }
 
-    /**
-     * 发布代取需求
-     * @param authorization JWT token
-     * @param request 请求参数 { deliveryIds: [Long], tipAmount: BigDecimal, dormBuilding: String }
-     * @return 创建的订单ID
-     */
     @PostMapping("/publish")
     @Operation(summary = "Publish a pickup order", description = "User publishes a new express pickup order")
     public Result<Map<String, Object>> publish(
             @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestBody Map<String, Object> request
-    ) {
+            @RequestBody Map<String, Object> request) {
         try {
-            // 获取当前用户
             User currentUser = getCurrentUser(authorization);
             
-            // 解析请求参数
             @SuppressWarnings("unchecked")
             List<Integer> deliveryIdInts = (List<Integer>) request.get("deliveryIds");
             if (deliveryIdInts == null || deliveryIdInts.isEmpty()) {
@@ -69,19 +58,65 @@ public class OrderController {
             
             String dormBuilding = (String) request.get("dormBuilding");
             
-            // 发布订单
             Order order = orderService.publish(currentUser.getId(), deliveryIds, tipAmount, dormBuilding);
             
-            return Result.success(Map.of("orderId", order.getId()));
+            Map<String, Object> result = new HashMap<>();
+            result.put("orderId", order.getId());
+            return Result.success(result);
         } catch (Exception ex) {
             return Result.error(ex.getMessage());
         }
     }
 
-    /**
-     * 获取待接单订单列表
-     * @return 待接单订单列表
-     */
+    @PostMapping("/accept/{orderId}")
+    @Operation(summary = "Accept an order", description = "User accepts a pickup order with optimistic lock")
+    public Result<Map<String, Object>> accept(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable Long orderId) {
+        try {
+            User currentUser = getCurrentUser(authorization);
+            Order order = orderService.accept(orderId, currentUser.getId());
+            Map<String, Object> result = new HashMap<>();
+            result.put("orderId", order.getId());
+            result.put("status", order.getStatus());
+            return Result.success(result);
+        } catch (Exception ex) {
+            return Result.error(ex.getMessage());
+        }
+    }
+
+    @PostMapping("/confirm/{orderId}")
+    @Operation(summary = "Confirm order completion", description = "Requester or receiver confirms order completion")
+    public Result<Map<String, Object>> confirm(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable Long orderId,
+            @RequestBody Map<String, String> request) {
+        try {
+            User currentUser = getCurrentUser(authorization);
+            String role = request.get("role");
+            Order order = orderService.confirm(orderId, currentUser.getId(), role);
+            Map<String, Object> result = new HashMap<>();
+            result.put("orderId", order.getId());
+            result.put("status", order.getStatus());
+            result.put("requesterConfirm", order.getRequesterConfirm());
+            result.put("receiverConfirm", order.getReceiverConfirm());
+            return Result.success(result);
+        } catch (Exception ex) {
+            return Result.error(ex.getMessage());
+        }
+    }
+
+    @GetMapping("/detail/{orderId}")
+    @Operation(summary = "Get order detail", description = "Get detailed information of an order")
+    public Result<OrderDetailVO> getDetail(@PathVariable Long orderId) {
+        try {
+            OrderDetailVO orderDetail = orderService.getOrderDetail(orderId);
+            return Result.success(orderDetail);
+        } catch (Exception ex) {
+            return Result.error(ex.getMessage());
+        }
+    }
+
     @GetMapping("/available")
     @Operation(summary = "Get available orders", description = "Query all orders with waiting status")
     public Result<List<AvailableOrderVO>> getAvailableOrders() {
@@ -93,11 +128,6 @@ public class OrderController {
         }
     }
 
-    /**
-     * 从请求头获取当前用户
-     * @param authorization JWT token
-     * @return 当前用户
-     */
     private User getCurrentUser(String authorization) {
         if (authorization == null || authorization.isEmpty()) {
             throw new IllegalArgumentException("缺少 token");

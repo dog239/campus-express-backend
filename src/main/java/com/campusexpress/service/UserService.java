@@ -55,6 +55,9 @@ public class UserService {
         if (wechatProperties.isDebug() && "debug-test".equals(code)) {
             return "debug-openid";
         }
+        if (wechatProperties.isDebug() && "demo-test".equals(code)) {
+            return "test-openid-001";
+        }
 
         String url = String.format("%s?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code",
                 wechatProperties.getSessionUrl(),

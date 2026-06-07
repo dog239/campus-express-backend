@@ -4,6 +4,8 @@ import com.campusexpress.common.Result;
 import com.campusexpress.entity.User;
 import com.campusexpress.service.UserService;
 import com.campusexpress.util.JwtUtil;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -11,6 +13,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/user")
+@Tag(name = "User Management", description = "User APIs")
 public class UserController {
 
     private final UserService userService;
@@ -22,6 +25,7 @@ public class UserController {
     }
 
     @PostMapping("/login")
+    @Operation(summary = "User login", description = "User login with WeChat code")
     public Result<Map<String, Object>> login(@RequestBody Map<String, String> request) {
         try {
             String code = request.get("code");

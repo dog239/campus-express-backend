@@ -2,6 +2,7 @@ package com.campusexpress.service;
 
 import com.campusexpress.entity.Order;
 import com.campusexpress.vo.AvailableOrderVO;
+import com.campusexpress.vo.OrderDetailVO;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -31,12 +32,13 @@ public interface OrderService {
     Order accept(Long orderId, Long receiverId);
 
     /**
-     * 完成订单
+     * 确认完成
      * @param orderId 订单ID
-     * @param role 角色（REQUESTER或HELPER）
+     * @param userId 用户ID
+     * @param role 角色（requester或receiver）
      * @return 更新后的订单
      */
-    Order complete(Long orderId, String role);
+    Order confirm(Long orderId, Long userId, String role);
 
     /**
      * 取消订单
@@ -64,4 +66,11 @@ public interface OrderService {
      * @return 待接单订单列表
      */
     List<AvailableOrderVO> getAvailableOrders();
+
+    /**
+     * 获取订单详情
+     * @param orderId 订单ID
+     * @return 订单详情
+     */
+    OrderDetailVO getOrderDetail(Long orderId);
 }

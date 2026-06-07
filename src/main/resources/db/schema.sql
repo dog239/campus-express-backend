@@ -15,3 +15,38 @@ CREATE TABLE IF NOT EXISTS "user" (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_username ON "user"(username);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_phone ON "user"(phone);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_openid ON "user"(openid);
+
+CREATE TABLE IF NOT EXISTS "package" (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` BIGINT NOT NULL,
+  `pickup_code` VARCHAR(32) NOT NULL,
+  `station_name` VARCHAR(32) NOT NULL,
+  `arrival_date` DATE NOT NULL,
+  `deleted` TINYINT NOT NULL DEFAULT 0,
+  `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_id ON "package"(user_id);
+CREATE INDEX IF NOT EXISTS idx_station_name ON "package"(station_name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_pickup_code ON "package"(user_id, pickup_code);
+
+CREATE TABLE IF NOT EXISTS "orders" (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `requester_id` BIGINT NOT NULL,
+  `receiver_id` BIGINT,
+  `package_ids` VARCHAR(255) NOT NULL,
+  `station_name` VARCHAR(32),
+  `tip_amount` DECIMAL(10, 2) NOT NULL,
+  `status` TINYINT NOT NULL DEFAULT 0,
+  `requester_confirm` BOOLEAN DEFAULT FALSE,
+  `receiver_confirm` BOOLEAN DEFAULT FALSE,
+  `photo_url` VARCHAR(255),
+  `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `complete_time` TIMESTAMP,
+  `version` INT DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_requester_id ON "orders"(requester_id);
+CREATE INDEX IF NOT EXISTS idx_receiver_id ON "orders"(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_status ON "orders"(status);
