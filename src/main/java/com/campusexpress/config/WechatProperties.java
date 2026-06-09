@@ -10,6 +10,8 @@ public class WechatProperties {
     private String appid;
     private String secret;
     private String sessionUrl = "https://api.weixin.qq.com/sns/jscode2session";
+    private String accessTokenUrl = "https://api.weixin.qq.com/cgi-bin/token";
+    private String subscribeSendUrl = "https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=%s";
     private boolean debug = false;
 
     public String getAppid() {
@@ -42,5 +44,21 @@ public class WechatProperties {
 
     public void setDebug(boolean debug) {
         this.debug = debug;
+    }
+
+    public String getAccessTokenUrl() {
+        return accessTokenUrl;
+    }
+
+    public void setAccessTokenUrl(String accessTokenUrl) {
+        this.accessTokenUrl = accessTokenUrl;
+    }
+
+    public String getSubscribeSendUrl() {
+        return subscribeSendUrl;
+    }
+
+    public void setSubscribeSendUrl(String subscribeSendUrl) {
+        this.subscribeSendUrl = subscribeSendUrl;
     }
 }

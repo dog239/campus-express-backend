@@ -44,6 +44,8 @@ wechat:
   appid: your-wechat-appid
   secret: your-wechat-secret
   session-url: https://api.weixin.qq.com/sns/jscode2session
+  access-token-url: https://api.weixin.qq.com/cgi-bin/token
+  subscribe-send-url: https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=%s
   debug: true
 
 oss:
@@ -59,6 +61,17 @@ oss:
 warning:
   webhook-url:
   scan-cron: 0 0 2 * * ?
+  wechat:
+    enabled: false
+    template-id:
+    page: pages/package/list/index
+    miniprogram-state: formal
+    lang: zh_CN
+    title-field: thing1
+    station-field: thing2
+    code-field: character_string3
+    date-field: time4
+    remark-field: thing5
 
 baidu:
   ocr:
