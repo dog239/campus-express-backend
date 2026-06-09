@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -126,6 +127,7 @@ public class OrderServiceImpl implements OrderService {
         if (Boolean.TRUE.equals(order.getRequesterConfirm()) && Boolean.TRUE.equals(order.getReceiverConfirm())) {
             order.setStatus(2);
             order.setCompleteTime(LocalDateTime.now());
+            markPackagesAsPicked(order.getPackageIds());
         }
 
         orderMapper.updateById(order);
@@ -248,5 +250,28 @@ public class OrderServiceImpl implements OrderService {
             default:
                 return "未知";
         }
+    }
+
+    private void markPackagesAsPicked(String packageIds) {
+        for (Long packageId : parsePackageIds(packageIds)) {
+            ExpressPackage expressPackage = expressPackageMapper.selectById(packageId);
+            if (expressPackage == null) {
+                continue;
+            }
+            expressPackage.setStatus(1);
+            expressPackage.setUpdateTime(LocalDateTime.now());
+            expressPackageMapper.updateById(expressPackage);
+        }
+    }
+
+    private List<Long> parsePackageIds(String packageIds) {
+        if (packageIds == null || packageIds.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        return Arrays.stream(packageIds.split(","))
+                .map(String::trim)
+                .filter(item -> !item.isEmpty())
+                .map(Long::parseLong)
+                .collect(Collectors.toList());
     }
 }

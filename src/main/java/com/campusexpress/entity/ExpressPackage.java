@@ -26,6 +26,11 @@ public class ExpressPackage {
     @TableField("arrival_date")
     private LocalDate arrivalDate;
 
+    /**
+     * 快递状态：0=未取件，1=已取件
+     */
+    private Integer status;
+
     private Integer deleted;
 
     @TableField("update_time")
@@ -83,6 +88,14 @@ public class ExpressPackage {
 
     public void setDeleted(Integer deleted) {
         this.deleted = deleted;
+    }
+
+    public Integer getStatus() {
+        return status;
+    }
+
+    public void setStatus(Integer status) {
+        this.status = status;
     }
 
     public LocalDateTime getUpdateTime() {

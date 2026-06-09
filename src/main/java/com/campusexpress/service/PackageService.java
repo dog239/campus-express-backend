@@ -52,6 +52,7 @@ public class PackageService {
         expressPackage.setPickupCode(pickupCode.trim());
         expressPackage.setStationName(stationName.trim());
         expressPackage.setArrivalDate(arrivalDate);
+        expressPackage.setStatus(0);
         expressPackage.setDeleted(0);
         expressPackage.setCreateTime(LocalDateTime.now());
         expressPackage.setUpdateTime(LocalDateTime.now());
@@ -99,6 +100,7 @@ public class PackageService {
         item.put("pickupCode", expressPackage.getPickupCode());
         item.put("stationName", expressPackage.getStationName());
         item.put("arrivalDate", expressPackage.getArrivalDate());
+        item.put("status", expressPackage.getStatus());
         item.put("createTime", expressPackage.getCreateTime());
         return item;
     }
