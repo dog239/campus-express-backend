@@ -36,21 +36,22 @@ public class DataInitializer implements CommandLineRunner {
         jdbcTemplate.execute("CREATE UNIQUE INDEX IF NOT EXISTS IDX_PHONE ON `user`(PHONE)");
         jdbcTemplate.execute("CREATE UNIQUE INDEX IF NOT EXISTS IDX_OPENID ON `user`(OPENID)");
 
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS PACKAGE (" +
+        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `package` (" +
                 "ID BIGINT AUTO_INCREMENT PRIMARY KEY, " +
                 "USER_ID BIGINT NOT NULL, " +
                 "PICKUP_CODE VARCHAR(32) NOT NULL, " +
                 "STATION_NAME VARCHAR(32) NOT NULL, " +
                 "ARRIVAL_DATE DATE NOT NULL, " +
+                "STATUS TINYINT NOT NULL DEFAULT 0, " +
                 "DELETED TINYINT NOT NULL DEFAULT 0, " +
                 "UPDATE_TIME TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                 "CREATE_TIME TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
                 ")");
 
-        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS IDX_USER_ID ON PACKAGE(USER_ID)");
-        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS IDX_STATION_NAME ON PACKAGE(STATION_NAME)");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS IDX_USER_ID ON `package`(USER_ID)");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS IDX_STATION_NAME ON `package`(STATION_NAME)");
 
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS ORDERS (" +
+        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `orders` (" +
                 "ID BIGINT AUTO_INCREMENT PRIMARY KEY, " +
                 "REQUESTER_ID BIGINT NOT NULL, " +
                 "RECEIVER_ID BIGINT, " +
@@ -66,9 +67,20 @@ public class DataInitializer implements CommandLineRunner {
                 "VERSION INT DEFAULT 0" +
                 ")");
 
-        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS IDX_REQUESTER_ID ON ORDERS(REQUESTER_ID)");
-        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS IDX_RECEIVER_ID ON ORDERS(RECEIVER_ID)");
-        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS IDX_STATUS ON ORDERS(STATUS)");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS IDX_REQUESTER_ID ON `orders`(REQUESTER_ID)");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS IDX_RECEIVER_ID ON `orders`(RECEIVER_ID)");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS IDX_STATUS ON `orders`(STATUS)");
+
+        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS `warning_log` (" +
+                "ID BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                "PACKAGE_ID BIGINT NOT NULL, " +
+                "USER_ID BIGINT NOT NULL, " +
+                "WARNING_TYPE VARCHAR(64) NOT NULL, " +
+                "WARNING_MESSAGE VARCHAR(255) NOT NULL, " +
+                "PUSHED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                "CREATE_TIME TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
+                ")");
+        jdbcTemplate.execute("CREATE UNIQUE INDEX IF NOT EXISTS IDX_WARNING_PACKAGE_TYPE ON `warning_log`(PACKAGE_ID, WARNING_TYPE)");
     }
 
     private void insertTestData() {
@@ -81,10 +93,10 @@ public class DataInitializer implements CommandLineRunner {
         jdbcTemplate.execute("MERGE INTO `user` (ID, USERNAME, PASSWORD, PHONE, NICKNAME, AVATAR, ROLE, DELETED, CREATE_TIME, UPDATE_TIME, OPENID) " +
                 "KEY(ID) VALUES (3, 'debug-test-user', '123456', '13000130000', '调试用户', '', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'debug-openid')");
 
-        jdbcTemplate.execute("MERGE INTO PACKAGE (ID, USER_ID, PICKUP_CODE, STATION_NAME, ARRIVAL_DATE, DELETED, CREATE_TIME, UPDATE_TIME) " +
-                "KEY(ID) VALUES (1, 1, '123456', '菜鸟驿站', '2026-06-01', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
+        jdbcTemplate.execute("MERGE INTO `package` (ID, USER_ID, PICKUP_CODE, STATION_NAME, ARRIVAL_DATE, STATUS, DELETED, CREATE_TIME, UPDATE_TIME) " +
+                "KEY(ID) VALUES (1, 1, '123456', '妈妈驿站', '2026-06-01', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
 
-        jdbcTemplate.execute("MERGE INTO PACKAGE (ID, USER_ID, PICKUP_CODE, STATION_NAME, ARRIVAL_DATE, DELETED, CREATE_TIME, UPDATE_TIME) " +
-                "KEY(ID) VALUES (2, 1, '654321', '顺丰驿站', '2026-06-02', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
+        jdbcTemplate.execute("MERGE INTO `package` (ID, USER_ID, PICKUP_CODE, STATION_NAME, ARRIVAL_DATE, STATUS, DELETED, CREATE_TIME, UPDATE_TIME) " +
+                "KEY(ID) VALUES (2, 1, '654321', '近邻宝', '2026-06-02', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
     }
 }

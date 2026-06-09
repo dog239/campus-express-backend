@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS "package" (
   `pickup_code` VARCHAR(32) NOT NULL,
   `station_name` VARCHAR(32) NOT NULL,
   `arrival_date` DATE NOT NULL,
+  `status` TINYINT NOT NULL DEFAULT 0,
   `deleted` TINYINT NOT NULL DEFAULT 0,
   `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -50,3 +51,15 @@ CREATE TABLE IF NOT EXISTS "orders" (
 CREATE INDEX IF NOT EXISTS idx_requester_id ON "orders"(requester_id);
 CREATE INDEX IF NOT EXISTS idx_receiver_id ON "orders"(receiver_id);
 CREATE INDEX IF NOT EXISTS idx_status ON "orders"(status);
+
+CREATE TABLE IF NOT EXISTS "warning_log" (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `package_id` BIGINT NOT NULL,
+  `user_id` BIGINT NOT NULL,
+  `warning_type` VARCHAR(64) NOT NULL,
+  `warning_message` VARCHAR(255) NOT NULL,
+  `pushed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_warning_package_type ON "warning_log"(package_id, warning_type);

@@ -46,6 +46,20 @@ wechat:
   session-url: https://api.weixin.qq.com/sns/jscode2session
   debug: true
 
+oss:
+  enabled: false
+  endpoint:
+  access-key-id:
+  access-key-secret:
+  bucket-name:
+  folder: evidence
+  url-prefix:
+  local-dir: uploads/evidence
+
+warning:
+  webhook-url:
+  scan-cron: 0 0 2 * * ?
+
 baidu:
   ocr:
     api-key: DTfR5EqnYhihCDUZ5mzuF5Ek

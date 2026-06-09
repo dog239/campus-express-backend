@@ -1,7 +1,8 @@
 package com.campusexpress.exception;
 
 import com.campusexpress.common.Result;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -12,8 +13,9 @@ import java.sql.SQLIntegrityConstraintViolationException;
 
 @ControllerAdvice(annotations = {RestController.class, Controller.class})
 @ResponseBody
-@Slf4j
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(SQLIntegrityConstraintViolationException.class)
     public Result<String> exceptionHandler(SQLIntegrityConstraintViolationException exception){
@@ -25,6 +27,17 @@ public class GlobalExceptionHandler {
         }else{
             return Result.error("未知错误");
         }
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public Result<String> illegalArgumentHandler(IllegalArgumentException exception) {
+        return Result.error(exception.getMessage());
+    }
+
+    @ExceptionHandler(Exception.class)
+    public Result<String> commonExceptionHandler(Exception exception) {
+        log.error("系统异常", exception);
+        return Result.error("系统异常: " + exception.getMessage());
     }
 
 }
