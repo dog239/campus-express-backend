@@ -1,10 +1,10 @@
 package com.campusexpress.service;
 
-import com.aliyun.oss.OSS;
-import com.aliyun.oss.OSSClientBuilder;
-import com.aliyun.oss.model.ObjectMetadata;
-import com.aliyun.oss.model.OSSObject;
-import com.campusexpress.config.OssProperties;
+import com.campusexpress.config.ObsProperties;
+import com.obs.services.ObsClient;
+import com.obs.services.exception.ObsException;
+import com.obs.services.model.ObjectMetadata;
+import com.obs.services.model.ObsObject;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 import org.springframework.util.StringUtils;
@@ -18,30 +18,32 @@ import java.nio.file.Paths;
 @Service
 public class EvidenceStorageService {
 
-    private final OssProperties ossProperties;
+    private final ObsProperties obsProperties;
 
-    public EvidenceStorageService(OssProperties ossProperties) {
-        this.ossProperties = ossProperties;
+    public EvidenceStorageService(ObsProperties obsProperties) {
+        this.obsProperties = obsProperties;
     }
 
     public String upload(String objectKey, byte[] content, String contentType) {
-        if (ossProperties.isEnabled()) {
-            validateOssConfig();
-            OSS client = buildClient();
+        if (obsProperties.isEnabled()) {
+            validateObsConfig();
+            ObsClient client = buildClient();
             try (ByteArrayInputStream inputStream = new ByteArrayInputStream(content)) {
                 ObjectMetadata metadata = new ObjectMetadata();
-                metadata.setContentLength(content.length);
+                metadata.setContentLength(Long.valueOf(content.length));
                 metadata.setContentType(contentType);
-                client.putObject(ossProperties.getBucketName(), objectKey, inputStream, metadata);
+                client.putObject(obsProperties.getBucketName(), objectKey, inputStream, metadata);
                 return objectKey;
             } catch (IOException ex) {
-                throw new IllegalStateException("上传 OSS 失败", ex);
+                throw new IllegalStateException("上传 OBS 失败", ex);
+            } catch (ObsException ex) {
+                throw new IllegalStateException("上传 OBS 失败: " + ex.getErrorMessage(), ex);
             } finally {
-                client.shutdown();
+                closeClientQuietly(client);
             }
         }
 
-        Path target = Paths.get(ossProperties.getLocalDir()).resolve(objectKey);
+        Path target = Paths.get(obsProperties.getLocalDir()).resolve(objectKey);
         try {
             Files.createDirectories(target.getParent());
             Files.write(target, content);
@@ -52,21 +54,28 @@ public class EvidenceStorageService {
     }
 
     public StoredFile download(String objectKey) {
-        if (ossProperties.isEnabled()) {
-            validateOssConfig();
-            OSS client = buildClient();
-            try (OSSObject object = client.getObject(ossProperties.getBucketName(), objectKey)) {
-                String contentType = object.getObjectMetadata().getContentType();
-                byte[] content = StreamUtils.copyToByteArray(object.getObjectContent());
-                return new StoredFile(content, contentType);
+        if (obsProperties.isEnabled()) {
+            validateObsConfig();
+            ObsClient client = buildClient();
+            try {
+                ObsObject object = client.getObject(obsProperties.getBucketName(), objectKey);
+                String contentType = object.getMetadata().getContentType();
+                try {
+                    byte[] content = StreamUtils.copyToByteArray(object.getObjectContent());
+                    return new StoredFile(content, contentType);
+                } finally {
+                    object.getObjectContent().close();
+                }
             } catch (IOException ex) {
-                throw new IllegalStateException("读取 OSS 存证文件失败", ex);
+                throw new IllegalStateException("读取 OBS 存证文件失败", ex);
+            } catch (ObsException ex) {
+                throw new IllegalStateException("读取 OBS 存证文件失败: " + ex.getErrorMessage(), ex);
             } finally {
-                client.shutdown();
+                closeClientQuietly(client);
             }
         }
 
-        Path target = Paths.get(ossProperties.getLocalDir()).resolve(objectKey);
+        Path target = Paths.get(obsProperties.getLocalDir()).resolve(objectKey);
         try {
             byte[] content = Files.readAllBytes(target);
             String contentType = Files.probeContentType(target);
@@ -81,44 +90,59 @@ public class EvidenceStorageService {
             return;
         }
         try {
-            if (ossProperties.isEnabled()) {
-                validateOssConfig();
-                OSS client = buildClient();
+            if (obsProperties.isEnabled()) {
+                validateObsConfig();
+                ObsClient client = buildClient();
                 try {
-                    client.deleteObject(ossProperties.getBucketName(), objectKey);
+                    client.deleteObject(obsProperties.getBucketName(), objectKey);
                 } finally {
-                    client.shutdown();
+                    closeClientQuietly(client);
                 }
                 return;
             }
 
-            Files.deleteIfExists(Paths.get(ossProperties.getLocalDir()).resolve(objectKey));
+            Files.deleteIfExists(Paths.get(obsProperties.getLocalDir()).resolve(objectKey));
         } catch (Exception ignored) {
         }
     }
 
     public String buildObjectKey(String objectKey) {
-        String folder = trimSlashes(ossProperties.getFolder());
+        String folder = trimSlashes(obsProperties.getFolder());
         if (!StringUtils.hasText(folder)) {
             return objectKey;
         }
         return folder + "/" + objectKey;
     }
 
-    private OSS buildClient() {
-        return new OSSClientBuilder().build(
-                ossProperties.getEndpoint(),
-                ossProperties.getAccessKeyId(),
-                ossProperties.getAccessKeySecret()
+    private ObsClient buildClient() {
+        return new ObsClient(
+                obsProperties.getAccessKeyId(),
+                obsProperties.getSecretAccessKey(),
+                normalizeEndpoint(obsProperties.getEndpoint())
         );
     }
 
-    private void validateOssConfig() {
-        if (!StringUtils.hasText(ossProperties.getEndpoint())
-                || !StringUtils.hasText(ossProperties.getAccessKeyId())
-                || !StringUtils.hasText(ossProperties.getAccessKeySecret())
-                || !StringUtils.hasText(ossProperties.getBucketName())) {
-            throw new IllegalStateException("OSS 已启用，但 endpoint/accessKeyId/accessKeySecret/bucketName 未完整配置");
+    private void validateObsConfig() {
+        if (!StringUtils.hasText(obsProperties.getEndpoint())
+                || !StringUtils.hasText(obsProperties.getAccessKeyId())
+                || !StringUtils.hasText(obsProperties.getSecretAccessKey())
+                || !StringUtils.hasText(obsProperties.getBucketName())) {
+            throw new IllegalStateException("OBS 已启用，但 endpoint/accessKeyId/secretAccessKey/bucketName 未完整配置");
+        }
+    }
+
+    private String normalizeEndpoint(String endpoint) {
+        String trimmed = endpoint.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return trimmed;
+        }
+        return "https://" + trimmed;
+    }
+
+    private void closeClientQuietly(ObsClient client) {
+        try {
+            client.close();
+        } catch (IOException ignored) {
         }
     }
 

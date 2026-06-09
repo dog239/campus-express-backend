@@ -4,15 +4,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConfigurationProperties(prefix = "oss")
-public class OssProperties {
+@ConfigurationProperties(prefix = "obs")
+public class ObsProperties {
 
     private boolean enabled = false;
     private String endpoint;
     private String accessKeyId;
-    private String accessKeySecret;
+    private String secretAccessKey;
     private String bucketName;
-    private String folder = "evidence";
+    private String folder = "campus-express/evidence";
     private String urlPrefix;
     private String localDir = "uploads/evidence";
 
@@ -40,12 +40,12 @@ public class OssProperties {
         this.accessKeyId = accessKeyId;
     }
 
-    public String getAccessKeySecret() {
-        return accessKeySecret;
+    public String getSecretAccessKey() {
+        return secretAccessKey;
     }
 
-    public void setAccessKeySecret(String accessKeySecret) {
-        this.accessKeySecret = accessKeySecret;
+    public void setSecretAccessKey(String secretAccessKey) {
+        this.secretAccessKey = secretAccessKey;
     }
 
     public String getBucketName() {

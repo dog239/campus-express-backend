@@ -15,13 +15,13 @@ wechat:
   subscribe-send-url: https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=%s
   debug: true
 
-oss:
-  enabled: false
-  endpoint:
-  access-key-id:
-  access-key-secret:
-  bucket-name:
-  folder: evidence
+obs:
+  enabled: ${OBS_ENABLED:true}
+  endpoint: obs.cn-north-4.myhuaweicloud.com
+  access-key-id: ${OBS_ACCESS_KEY_ID:}
+  secret-access-key: ${OBS_SECRET_ACCESS_KEY:}
+  bucket-name: picture-64
+  folder: campus-express/evidence
   url-prefix:
   local-dir: uploads/evidence
 
