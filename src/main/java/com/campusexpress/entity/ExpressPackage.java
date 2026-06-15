@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-@TableName("[package]")
+@TableName("package")
 public class ExpressPackage {
 
     @TableId(value = "id", type = IdType.AUTO)
