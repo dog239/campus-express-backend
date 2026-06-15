@@ -39,8 +39,8 @@ jwt:
   expiration: 604800
 
 wechat:
-  appid: wxf75e60b7eab2499b
-  secret: c7ae0fb7819190c6f8e019afd34b9379
+  appid: wx45f237f1dc960ff8
+  secret: 9c8cabe68d6190908edc4ca4d3710e75
   session-url: https://api.weixin.qq.com/sns/jscode2session
   access-token-url: https://api.weixin.qq.com/cgi-bin/token
   subscribe-send-url: https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=%s
