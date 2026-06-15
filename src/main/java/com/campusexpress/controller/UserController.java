@@ -154,7 +154,7 @@ public class UserController {
 
     @PutMapping("/update")
     @Operation(summary = "Update user info", description = "Update user nickname")
-    public Result<String> update(
+    public Result<Map<String, String>> update(
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestBody Map<String, String> request) {
         try {
@@ -170,7 +170,10 @@ public class UserController {
             }
             
             userService.updateNickname(openid, nickname.trim());
-            return Result.success("更新成功");
+            
+            Map<String, String> result = new HashMap<>();
+            result.put("nickname", nickname.trim());
+            return Result.success(result);
         } catch (Exception e) {
             return Result.error(e.getMessage());
         }
