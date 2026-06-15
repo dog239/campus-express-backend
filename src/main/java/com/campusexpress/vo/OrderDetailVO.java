@@ -12,9 +12,11 @@ public class OrderDetailVO {
     private Long requesterId;
     private String requesterNickname;
     private String requesterAvatar;
+    private String requesterPhone;
     private Long receiverId;
     private String receiverNickname;
     private String receiverAvatar;
+    private String receiverPhone;
     private List<Long> packageIds;
     private List<ExpressPackageVO> packages;
     private String stationName;
@@ -62,6 +64,14 @@ public class OrderDetailVO {
         this.requesterAvatar = requesterAvatar;
     }
 
+    public String getRequesterPhone() {
+        return requesterPhone;
+    }
+
+    public void setRequesterPhone(String requesterPhone) {
+        this.requesterPhone = requesterPhone;
+    }
+
     public Long getReceiverId() {
         return receiverId;
     }
@@ -84,6 +94,14 @@ public class OrderDetailVO {
 
     public void setReceiverAvatar(String receiverAvatar) {
         this.receiverAvatar = receiverAvatar;
+    }
+
+    public String getReceiverPhone() {
+        return receiverPhone;
+    }
+
+    public void setReceiverPhone(String receiverPhone) {
+        this.receiverPhone = receiverPhone;
     }
 
     public List<Long> getPackageIds() {

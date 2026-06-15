@@ -160,6 +160,20 @@ public class OrderController {
         }
     }
 
+    @DeleteMapping("/{orderId}")
+    @Operation(summary = "Delete an order", description = "Delete an order")
+    public Result<String> deleteOrder(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable Long orderId) {
+        try {
+            User currentUser = getCurrentUser(authorization);
+            orderService.deleteOrder(orderId, currentUser.getId());
+            return Result.success("删除成功");
+        } catch (Exception ex) {
+            return Result.error(ex.getMessage());
+        }
+    }
+
     private User getCurrentUser(String authorization) {
         if (authorization == null || authorization.isEmpty()) {
             throw new IllegalArgumentException("缺少 token");

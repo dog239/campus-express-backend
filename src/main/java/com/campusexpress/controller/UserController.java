@@ -151,4 +151,49 @@ public class UserController {
             return Result.error(e.getMessage());
         }
     }
+
+    @PutMapping("/update")
+    @Operation(summary = "Update user info", description = "Update user nickname")
+    public Result<String> update(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestBody Map<String, String> request) {
+        try {
+            if (authorization == null || authorization.isEmpty()) {
+                return Result.error("缺少 token");
+            }
+            
+            String openid = jwtUtil.parseToken(authorization);
+            String nickname = request.get("nickname");
+            
+            if (nickname == null || nickname.trim().isEmpty()) {
+                return Result.error("昵称不能为空");
+            }
+            
+            userService.updateNickname(openid, nickname.trim());
+            return Result.success("更新成功");
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @GetMapping("/stats")
+    @Operation(summary = "Get user stats", description = "Get user statistics")
+    public Result<Map<String, Object>> stats(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        try {
+            if (authorization == null || authorization.isEmpty()) {
+                return Result.error("缺少 token");
+            }
+            
+            String openid = jwtUtil.parseToken(authorization);
+            User user = userService.getUserByOpenid(openid);
+            if (user == null) {
+                return Result.error("用户不存在");
+            }
+            
+            Map<String, Object> stats = userService.getUserStats(user.getId());
+            return Result.success(stats);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
 }

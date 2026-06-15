@@ -86,6 +86,19 @@ public class PackageService {
         return SUPPORTED_STATIONS;
     }
 
+    public void deletePackage(Long packageId, Long userId) {
+        ExpressPackage expressPackage = expressPackageMapper.selectById(packageId);
+        if (expressPackage == null) {
+            throw new IllegalArgumentException("包裹不存在");
+        }
+        
+        if (!expressPackage.getUserId().equals(userId)) {
+            throw new IllegalArgumentException("只有包裹所有者可以删除");
+        }
+        
+        expressPackageMapper.deleteById(packageId);
+    }
+
     private Map<String, Object> toItem(ExpressPackage expressPackage) {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("id", expressPackage.getId());

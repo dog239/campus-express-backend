@@ -255,6 +255,7 @@ public class OrderServiceImpl implements OrderService {
         if (requester != null) {
             vo.setRequesterNickname(requester.getNickname());
             vo.setRequesterAvatar(requester.getAvatar());
+            vo.setRequesterPhone(maskPhone(requester.getPhone()));
         }
 
         if (order.getReceiverId() != null) {
@@ -262,10 +263,18 @@ public class OrderServiceImpl implements OrderService {
             if (receiver != null) {
                 vo.setReceiverNickname(receiver.getNickname());
                 vo.setReceiverAvatar(receiver.getAvatar());
+                vo.setReceiverPhone(maskPhone(receiver.getPhone()));
             }
         }
 
         return vo;
+    }
+
+    private String maskPhone(String phone) {
+        if (phone == null || phone.length() < 11) {
+            return phone;
+        }
+        return phone.substring(0, 3) + "****" + phone.substring(7);
     }
 
     private String getStatusText(Integer status) {
@@ -304,5 +313,19 @@ public class OrderServiceImpl implements OrderService {
                 .filter(item -> !item.isEmpty())
                 .map(Long::parseLong)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public void deleteOrder(Long orderId, Long userId) {
+        Order order = orderMapper.selectById(orderId);
+        if (order == null) {
+            throw new IllegalArgumentException("订单不存在");
+        }
+        
+        if (!order.getRequesterId().equals(userId)) {
+            throw new IllegalArgumentException("只有发布者可以删除订单");
+        }
+        
+        orderMapper.deleteById(orderId);
     }
 }

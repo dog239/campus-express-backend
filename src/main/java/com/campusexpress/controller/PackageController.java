@@ -5,7 +5,9 @@ import com.campusexpress.entity.User;
 import com.campusexpress.service.PackageService;
 import com.campusexpress.service.UserService;
 import com.campusexpress.util.JwtUtil;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -85,6 +87,19 @@ public class PackageController {
             return LocalDate.parse(arrivalDate.trim());
         } catch (DateTimeParseException ex) {
             throw new IllegalArgumentException("arrivalDate 格式错误，请使用 yyyy-MM-dd");
+        }
+    }
+
+    @DeleteMapping("/{packageId}")
+    public Result<String> deletePackage(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable Long packageId) {
+        try {
+            User currentUser = getCurrentUser(authorization);
+            packageService.deletePackage(packageId, currentUser.getId());
+            return Result.success("删除成功");
+        } catch (Exception ex) {
+            return Result.error(ex.getMessage());
         }
     }
 }

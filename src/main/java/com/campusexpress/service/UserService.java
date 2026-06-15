@@ -365,4 +365,30 @@ public class UserService {
         }
         return sb.toString().trim();
     }
+
+    public void updateNickname(String openid, String nickname) {
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("openid", openid));
+        if (user == null) {
+            throw new IllegalArgumentException("用户不存在");
+        }
+        
+        userMapper.update(null, new UpdateWrapper<User>()
+                .eq("openid", openid)
+                .set("nickname", nickname)
+                .set("update_time", LocalDateTime.now()));
+    }
+
+    public Map<String, Object> getUserStats(Long userId) {
+        Map<String, Object> stats = new HashMap<>();
+        
+        Integer packageCount = userMapper.countPackagesByUserId(userId);
+        Integer orderCount = userMapper.countOrdersByUserId(userId);
+        String earnings = userMapper.sumEarningsByUserId(userId);
+        
+        stats.put("packageCount", packageCount != null ? packageCount : 0);
+        stats.put("orderCount", orderCount != null ? orderCount : 0);
+        stats.put("earnings", earnings != null ? earnings : "0.00");
+        
+        return stats;
+    }
 }

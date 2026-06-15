@@ -82,4 +82,11 @@ public interface OrderService {
      * @return 订单详情
      */
     OrderDetailVO getOrderDetail(Long orderId);
+
+    /**
+     * 删除订单
+     * @param orderId 订单ID
+     * @param userId 用户ID
+     */
+    void deleteOrder(Long orderId, Long userId);
 }
