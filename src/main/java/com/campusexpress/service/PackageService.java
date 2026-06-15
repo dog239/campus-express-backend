@@ -40,9 +40,6 @@ public class PackageService {
         if (stationName == null || stationName.trim().isEmpty()) {
             throw new IllegalArgumentException("stationName 不能为空");
         }
-        if (!SUPPORTED_STATIONS.contains(stationName.trim())) {
-            throw new IllegalArgumentException("stationName 不合法，仅支持: " + String.join("、", SUPPORTED_STATIONS));
-        }
         if (arrivalDate == null) {
             throw new IllegalArgumentException("arrivalDate 不能为空");
         }
@@ -73,20 +70,15 @@ public class PackageService {
         );
 
         Map<String, List<Map<String, Object>>> grouped = new LinkedHashMap<>();
-        for (String station : SUPPORTED_STATIONS) {
-            grouped.put(station, new ArrayList<>());
-        }
 
         for (ExpressPackage expressPackage : packageList) {
-            List<Map<String, Object>> stationPackages = grouped.get(expressPackage.getStationName());
-            if (stationPackages == null) {
-                stationPackages = new ArrayList<>();
-                grouped.put(expressPackage.getStationName(), stationPackages);
+            String stationName = expressPackage.getStationName();
+            if (!grouped.containsKey(stationName)) {
+                grouped.put(stationName, new ArrayList<>());
             }
-            stationPackages.add(toItem(expressPackage));
+            grouped.get(stationName).add(toItem(expressPackage));
         }
 
-        grouped.entrySet().removeIf(entry -> entry.getValue().isEmpty());
         return grouped;
     }
 
