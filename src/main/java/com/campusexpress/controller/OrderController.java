@@ -75,10 +75,7 @@ public class OrderController {
             @PathVariable Long orderId) {
         try {
             User currentUser = getCurrentUser(authorization);
-            Order order = orderService.accept(orderId, currentUser.getId());
-            Map<String, Object> result = new HashMap<>();
-            result.put("orderId", order.getId());
-            result.put("status", order.getStatus());
+            Map<String, Object> result = orderService.acceptWithPickupCodes(orderId, currentUser.getId());
             return Result.success(result);
         } catch (Exception ex) {
             return Result.error(ex.getMessage());
@@ -123,6 +120,41 @@ public class OrderController {
         try {
             List<AvailableOrderVO> orders = orderService.getAvailableOrders();
             return Result.success(orders);
+        } catch (Exception ex) {
+            return Result.error(ex.getMessage());
+        }
+    }
+
+    @GetMapping("/my")
+    @Operation(summary = "Get my orders", description = "Get orders published or accepted by current user")
+    public Result<Map<String, Object>> getMyOrders(
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        try {
+            User currentUser = getCurrentUser(authorization);
+            List<Order> publishedOrders = orderService.listByRequester(currentUser.getId());
+            List<Order> acceptedOrders = orderService.listByReceiver(currentUser.getId());
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("published", publishedOrders);
+            result.put("accepted", acceptedOrders);
+            return Result.success(result);
+        } catch (Exception ex) {
+            return Result.error(ex.getMessage());
+        }
+    }
+
+    @PostMapping("/cancel/{orderId}")
+    @Operation(summary = "Cancel an order", description = "Cancel an order by requester")
+    public Result<Map<String, Object>> cancel(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable Long orderId) {
+        try {
+            User currentUser = getCurrentUser(authorization);
+            Order order = orderService.cancel(orderId);
+            Map<String, Object> result = new HashMap<>();
+            result.put("orderId", order.getId());
+            result.put("status", order.getStatus());
+            return Result.success(result);
         } catch (Exception ex) {
             return Result.error(ex.getMessage());
         }

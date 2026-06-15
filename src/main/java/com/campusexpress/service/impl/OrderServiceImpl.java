@@ -18,7 +18,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -96,6 +98,29 @@ public class OrderServiceImpl implements OrderService {
         }
 
         return orderMapper.selectById(orderId);
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> acceptWithPickupCodes(Long orderId, Long receiverId) {
+        Order order = accept(orderId, receiverId);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("orderId", order.getId());
+        result.put("status", order.getStatus());
+        result.put("stationName", order.getStationName());
+        
+        List<String> pickupCodes = new ArrayList<>();
+        if (order.getPackageIds() != null && !order.getPackageIds().isEmpty()) {
+            List<Long> packageIdList = parsePackageIds(order.getPackageIds());
+            List<ExpressPackage> packages = expressPackageMapper.selectBatchIds(packageIdList);
+            pickupCodes = packages.stream()
+                    .map(ExpressPackage::getPickupCode)
+                    .collect(Collectors.toList());
+        }
+        result.put("pickupCodes", pickupCodes);
+        
+        return result;
     }
 
     @Override
@@ -212,9 +237,15 @@ public class OrderServiceImpl implements OrderService {
             List<ExpressPackageVO> packageVOs = packages.stream().map(pkg -> {
                 ExpressPackageVO packageVO = new ExpressPackageVO();
                 packageVO.setId(pkg.getId());
-                packageVO.setPickupCode(pkg.getPickupCode());
                 packageVO.setStationName(pkg.getStationName());
                 packageVO.setArrivalDate(pkg.getArrivalDate());
+                
+                if (order.getStatus() != 0) {
+                    packageVO.setPickupCode(pkg.getPickupCode());
+                } else {
+                    packageVO.setPickupCode("***");
+                }
+                
                 return packageVO;
             }).collect(Collectors.toList());
             vo.setPackages(packageVOs);

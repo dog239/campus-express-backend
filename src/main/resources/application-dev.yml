@@ -1,9 +1,9 @@
 spring:
   datasource:
-    driver-class-name: org.h2.Driver
-    url: jdbc:h2:mem:campus_express;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    url: jdbc:sqlserver://localhost:1433;databaseName=campus_express;encrypt=false
     username: sa
-    password:
+    password: Ma131419+
   sql:
     init:
       mode: always
@@ -11,6 +11,9 @@ spring:
       data-locations: classpath:db/data.sql
 
 wechat:
+  appid: wxf75e60b7eab2499b
+  secret: c7ae0fb7819190c6f8e019afd34b9379
+  session-url: https://api.weixin.qq.com/sns/jscode2session
   access-token-url: https://api.weixin.qq.com/cgi-bin/token
   subscribe-send-url: https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=%s
   debug: true

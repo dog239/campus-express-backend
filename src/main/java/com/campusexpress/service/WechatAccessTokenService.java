@@ -1,6 +1,7 @@
 package com.campusexpress.service;
 
 import com.campusexpress.config.WechatProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
@@ -42,25 +43,30 @@ public class WechatAccessTokenService {
                     .queryParam("secret", wechatProperties.getSecret())
                     .toUriString();
 
-            @SuppressWarnings("unchecked")
-            Map<String, Object> response = restTemplate.getForObject(url, Map.class);
-            if (response == null) {
-                throw new IllegalStateException("获取微信 access_token 失败：返回为空");
-            }
-            if (response.get("errcode") != null) {
-                throw new IllegalStateException("获取微信 access_token 失败: " + response.get("errmsg"));
-            }
+            try {
+                String responseStr = restTemplate.getForObject(url, String.class);
+                System.out.println("微信 access_token 接口返回: " + responseStr);
 
-            Object accessToken = response.get("access_token");
-            Object expiresIn = response.get("expires_in");
-            if (accessToken == null || expiresIn == null) {
-                throw new IllegalStateException("获取微信 access_token 失败：返回缺少字段");
-            }
+                ObjectMapper mapper = new ObjectMapper();
+                Map<String, Object> response = mapper.readValue(responseStr, Map.class);
 
-            long expiresSeconds = Long.parseLong(String.valueOf(expiresIn));
-            cachedAccessToken = String.valueOf(accessToken);
-            expireAt = Instant.now().plusSeconds(Math.max(60, expiresSeconds - 300));
-            return cachedAccessToken;
+                if (response.get("errcode") != null) {
+                    throw new IllegalStateException("获取微信 access_token 失败: " + response.get("errmsg"));
+                }
+
+                Object accessToken = response.get("access_token");
+                Object expiresIn = response.get("expires_in");
+                if (accessToken == null || expiresIn == null) {
+                    throw new IllegalStateException("获取微信 access_token 失败：返回缺少字段");
+                }
+
+                long expiresSeconds = Long.parseLong(String.valueOf(expiresIn));
+                cachedAccessToken = String.valueOf(accessToken);
+                expireAt = Instant.now().plusSeconds(Math.max(60, expiresSeconds - 300));
+                return cachedAccessToken;
+            } catch (Exception e) {
+                throw new RuntimeException("解析微信 access_token 响应失败: " + e.getMessage(), e);
+            }
         }
     }
 }

@@ -5,7 +5,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-@Component
+// @Component // 已禁用：改用 schema.sql 和 data.sql 初始化数据库
 public class DataInitializer implements CommandLineRunner {
 
     @Autowired

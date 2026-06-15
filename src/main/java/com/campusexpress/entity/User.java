@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.LocalDateTime;
 
-@TableName("`user`")
+@TableName("[user]")
 public class User {
 
     @TableId(value = "id", type = IdType.AUTO)

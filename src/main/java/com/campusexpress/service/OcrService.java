@@ -1,6 +1,7 @@
 package com.campusexpress.service;
 
 import com.campusexpress.config.OcrProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -119,30 +120,35 @@ public class OcrService {
                 urlEncode(ocrProperties.getSecretKey())
         );
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> response = restTemplate.getForObject(url, Map.class);
-        if (response == null) {
-            throw new IllegalStateException("百度 OCR token 获取失败，返回为空");
-        }
-        if (response.containsKey("error")) {
-            throw new IllegalStateException("百度 OCR token 获取失败: " + response.get("error_description"));
-        }
+        try {
+            String responseStr = restTemplate.getForObject(url, String.class);
+            System.out.println("百度 OCR token 接口返回: " + responseStr);
 
-        Object tokenObj = response.get("access_token");
-        Object expireObj = response.get("expires_in");
-        if (tokenObj == null || expireObj == null) {
-            throw new IllegalStateException("百度 OCR token 响应缺少 access_token 或 expires_in");
-        }
+            ObjectMapper mapper = new ObjectMapper();
+            Map<String, Object> response = mapper.readValue(responseStr, Map.class);
 
-        accessToken = String.valueOf(tokenObj);
-        long expiresIn;
-        if (expireObj instanceof Number) {
-            expiresIn = ((Number) expireObj).longValue();
-        } else {
-            expiresIn = Long.parseLong(String.valueOf(expireObj));
+            if (response.containsKey("error")) {
+                throw new IllegalStateException("百度 OCR token 获取失败: " + response.get("error_description"));
+            }
+
+            Object tokenObj = response.get("access_token");
+            Object expireObj = response.get("expires_in");
+            if (tokenObj == null || expireObj == null) {
+                throw new IllegalStateException("百度 OCR token 响应缺少 access_token 或 expires_in");
+            }
+
+            accessToken = String.valueOf(tokenObj);
+            long expiresIn;
+            if (expireObj instanceof Number) {
+                expiresIn = ((Number) expireObj).longValue();
+            } else {
+                expiresIn = Long.parseLong(String.valueOf(expireObj));
+            }
+            accessTokenExpireAt = now + expiresIn * 1000L;
+            return accessToken;
+        } catch (Exception e) {
+            throw new RuntimeException("解析百度 OCR token 响应失败: " + e.getMessage(), e);
         }
-        accessTokenExpireAt = now + expiresIn * 1000L;
-        return accessToken;
     }
 
     private static String urlEncode(String value) {

@@ -6,6 +6,7 @@ import com.campusexpress.vo.OrderDetailVO;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 订单服务接口
@@ -30,6 +31,14 @@ public interface OrderService {
      * @return 更新后的订单
      */
     Order accept(Long orderId, Long receiverId);
+
+    /**
+     * 接单并返回取件码
+     * @param orderId 订单ID
+     * @param receiverId 接单者ID
+     * @return 包含订单信息和取件码的Map
+     */
+    Map<String, Object> acceptWithPickupCodes(Long orderId, Long receiverId);
 
     /**
      * 确认完成

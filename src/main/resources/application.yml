@@ -4,21 +4,23 @@ server:
 spring:
   application:
     name: campus-express-backend
-
+  
   datasource:
     driver-class-name: org.h2.Driver
-    url: jdbc:h2:mem:campus_express;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    url: jdbc:h2:mem:campus_express;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
     username: sa
     password:
-
+  
   h2:
     console:
       enabled: true
       path: /h2-console
-
+  
   sql:
     init:
-      mode: never
+      mode: always
+      schema-locations: classpath:db/schema.sql
+      data-locations: classpath:db/data.sql
 
 mybatis-plus:
   configuration:
@@ -34,6 +36,7 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
       table-underline: true
+      db-type: h2
   mapper-locations: classpath:mapper/*.xml
 
 jwt:
@@ -41,15 +44,15 @@ jwt:
   expiration: 604800
 
 wechat:
-  appid: your-wechat-appid
-  secret: your-wechat-secret
+  appid: wxf75e60b7eab2499b
+  secret: c7ae0fb7819190c6f8e019afd34b9379
   session-url: https://api.weixin.qq.com/sns/jscode2session
   access-token-url: https://api.weixin.qq.com/cgi-bin/token
   subscribe-send-url: https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=%s
-  debug: true
+  debug: false
 
 obs:
-  enabled: ${OBS_ENABLED:true}
+  enabled: ${OBS_ENABLED:false}
   endpoint: obs.cn-north-4.myhuaweicloud.com
   access-key-id: ${OBS_ACCESS_KEY_ID:}
   secret-access-key: ${OBS_SECRET_ACCESS_KEY:}
