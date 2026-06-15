@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -98,6 +99,19 @@ public class PackageController {
             User currentUser = getCurrentUser(authorization);
             packageService.deletePackage(packageId, currentUser.getId());
             return Result.success("删除成功");
+        } catch (Exception ex) {
+            return Result.error(ex.getMessage());
+        }
+    }
+
+    @PutMapping("/{packageId}/complete")
+    public Result<String> markComplete(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable Long packageId) {
+        try {
+            User currentUser = getCurrentUser(authorization);
+            packageService.markComplete(packageId, currentUser.getId());
+            return Result.success("标记成功");
         } catch (Exception ex) {
             return Result.error(ex.getMessage());
         }

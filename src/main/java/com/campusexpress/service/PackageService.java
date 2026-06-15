@@ -1,6 +1,7 @@
 package com.campusexpress.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.campusexpress.entity.ExpressPackage;
 import com.campusexpress.mapper.ExpressPackageMapper;
 import org.springframework.stereotype.Service;
@@ -97,6 +98,22 @@ public class PackageService {
         }
         
         expressPackageMapper.deleteById(packageId);
+    }
+
+    public void markComplete(Long packageId, Long userId) {
+        ExpressPackage expressPackage = expressPackageMapper.selectById(packageId);
+        if (expressPackage == null) {
+            throw new IllegalArgumentException("包裹不存在");
+        }
+        
+        if (!expressPackage.getUserId().equals(userId)) {
+            throw new IllegalArgumentException("只有包裹所有者可以标记");
+        }
+        
+        expressPackageMapper.update(null, new UpdateWrapper<ExpressPackage>()
+                .eq("id", packageId)
+                .set("status", 1)
+                .set("update_time", LocalDateTime.now()));
     }
 
     private Map<String, Object> toItem(ExpressPackage expressPackage) {
