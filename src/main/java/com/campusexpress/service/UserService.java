@@ -9,6 +9,7 @@ import com.campusexpress.mapper.UserMapper;
 import com.campusexpress.util.JwtUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
@@ -30,13 +31,15 @@ public class UserService {
     private final UserMapper userMapper;
     private final JwtUtil jwtUtil;
     private final WechatProperties wechatProperties;
+    private final EvidenceStorageService evidenceStorageService;
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    public UserService(UserMapper userMapper, JwtUtil jwtUtil, WechatProperties wechatProperties) {
+    public UserService(UserMapper userMapper, JwtUtil jwtUtil, WechatProperties wechatProperties, EvidenceStorageService evidenceStorageService) {
         this.userMapper = userMapper;
         this.jwtUtil = jwtUtil;
         this.wechatProperties = wechatProperties;
+        this.evidenceStorageService = evidenceStorageService;
     }
 
     private void disableSSLVerification() {
@@ -390,5 +393,35 @@ public class UserService {
         stats.put("earnings", earnings != null ? earnings : "0.00");
         
         return stats;
+    }
+
+    public String uploadAvatar(String openid, MultipartFile file) {
+        try {
+            User user = userMapper.selectOne(new QueryWrapper<User>().eq("openid", openid));
+            if (user == null) {
+                throw new IllegalArgumentException("用户不存在");
+            }
+            
+            String fileName = "avatar/" + openid + "/" + System.currentTimeMillis() + ".jpg";
+            String objectKey = evidenceStorageService.buildObjectKey(fileName);
+            byte[] content = file.getBytes();
+            String contentType = file.getContentType();
+            if (contentType == null || contentType.isEmpty()) {
+                contentType = "image/jpeg";
+            }
+            
+            evidenceStorageService.upload(objectKey, content, contentType);
+            
+            String avatarUrl = objectKey;
+            
+            userMapper.update(null, new UpdateWrapper<User>()
+                    .eq("openid", openid)
+                    .set("avatar", avatarUrl)
+                    .set("update_time", LocalDateTime.now()));
+            
+            return avatarUrl;
+        } catch (Exception e) {
+            throw new RuntimeException("上传头像失败: " + e.getMessage(), e);
+        }
     }
 }

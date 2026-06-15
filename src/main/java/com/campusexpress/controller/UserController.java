@@ -7,6 +7,7 @@ import com.campusexpress.util.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -195,6 +196,27 @@ public class UserController {
             
             Map<String, Object> stats = userService.getUserStats(user.getId());
             return Result.success(stats);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/avatar")
+    @Operation(summary = "Upload avatar", description = "Upload user avatar")
+    public Result<Map<String, String>> uploadAvatar(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam("file") MultipartFile file) {
+        try {
+            if (authorization == null || authorization.isEmpty()) {
+                return Result.error("缺少 token");
+            }
+            
+            String openid = jwtUtil.parseToken(authorization);
+            String avatarUrl = userService.uploadAvatar(openid, file);
+            
+            Map<String, String> result = new HashMap<>();
+            result.put("avatar", avatarUrl);
+            return Result.success(result);
         } catch (Exception e) {
             return Result.error(e.getMessage());
         }
