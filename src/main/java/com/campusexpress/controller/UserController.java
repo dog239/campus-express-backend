@@ -6,6 +6,7 @@ import com.campusexpress.service.UserService;
 import com.campusexpress.util.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -201,11 +202,11 @@ public class UserController {
         }
     }
 
-    @PostMapping("/avatar")
+    @PostMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Upload avatar", description = "Upload user avatar")
     public Result<Map<String, String>> uploadAvatar(
             @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestParam("file") MultipartFile file) {
+            @RequestPart("file") MultipartFile file) {
         try {
             if (authorization == null || authorization.isEmpty()) {
                 return Result.error("缺少 token");
