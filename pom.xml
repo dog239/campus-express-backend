@@ -65,14 +65,13 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- MySQL Driver（已注释，改用 SQL Server）
+        <!-- MySQL Driver -->
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
             <version>8.0.33</version>
             <scope>runtime</scope>
         </dependency>
-        -->
 
         <!-- H2 Database（本地测试用） -->
         <dependency>

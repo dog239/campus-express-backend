@@ -6,15 +6,10 @@ spring:
     name: campus-express-backend
   
   datasource:
-    driver-class-name: org.h2.Driver
-    url: jdbc:h2:mem:campus_express;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL;NON_KEYWORDS=USER
-    username: sa
-    password:
-  
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://10.25.111.156:3306/campus_express?useSSL=false&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true
+    username: root
+    password: Ma131419+
   
   sql:
     init:
@@ -36,7 +31,7 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
       table-underline: true
-      db-type: h2
+      db-type: mysql
   mapper-locations: classpath:mapper/*.xml
 
 jwt:
