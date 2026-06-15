@@ -166,6 +166,9 @@ public class OrderController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable Long orderId) {
         try {
+            if (orderId == null || orderId <= 0) {
+                return Result.error("订单ID无效");
+            }
             User currentUser = getCurrentUser(authorization);
             orderService.deleteOrder(orderId, currentUser.getId());
             return Result.success("删除成功");
