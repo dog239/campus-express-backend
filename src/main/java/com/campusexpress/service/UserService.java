@@ -13,7 +13,12 @@ import org.springframework.web.client.RestTemplate;
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.nio.charset.StandardCharsets;
+import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HashMap;
@@ -32,6 +37,24 @@ public class UserService {
         this.userMapper = userMapper;
         this.jwtUtil = jwtUtil;
         this.wechatProperties = wechatProperties;
+    }
+
+    private void disableSSLVerification() {
+        try {
+            TrustManager[] trustAllCerts = new TrustManager[] {
+                new X509TrustManager() {
+                    public X509Certificate[] getAcceptedIssuers() { return null; }
+                    public void checkClientTrusted(X509Certificate[] certs, String authType) { }
+                    public void checkServerTrusted(X509Certificate[] certs, String authType) { }
+                }
+            };
+            SSLContext sc = SSLContext.getInstance("TLS");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+            HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> true);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public Map<String, Object> login(String code) {
@@ -65,6 +88,8 @@ public class UserService {
         if (wechatProperties.isDebug() && "demo-test".equals(code)) {
             return "test-openid-001";
         }
+
+        disableSSLVerification();
 
         String url = String.format("%s?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code",
                 wechatProperties.getSessionUrl(),
@@ -173,6 +198,8 @@ public class UserService {
         System.out.println("=== 开始获取 session_key");
         System.out.println("=== code: " + code);
         System.out.println("=== appid: " + wechatProperties.getAppid());
+        
+        disableSSLVerification();
         
         String url = String.format("%s?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code",
                 wechatProperties.getSessionUrl(),
