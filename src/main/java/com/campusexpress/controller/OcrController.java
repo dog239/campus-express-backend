@@ -2,17 +2,16 @@ package com.campusexpress.controller;
 
 import com.campusexpress.common.Result;
 import com.campusexpress.service.OcrService;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.util.Base64;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -25,21 +24,23 @@ public class OcrController {
         this.ocrService = ocrService;
     }
 
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.APPLICATION_JSON_VALUE})
     public Result<Map<String, Object>> upload(
-            @RequestBody(required = false) Map<String, String> body,
-            @RequestParam(value = "imageBase64", required = false) String imageBase64,
-            @RequestParam(value = "imageFile", required = false) MultipartFile imageFile
-    ) {
+            @RequestPart(value = "imageFile", required = false) MultipartFile imageFile,
+            @RequestBody(required = false) Map<String, String> body) {
         try {
-            if (body != null && (imageBase64 == null || imageBase64.trim().isEmpty())) {
+            String imageBase64 = null;
+            
+            if (imageFile != null && !imageFile.isEmpty()) {
+                imageBase64 = Base64.getEncoder().encodeToString(imageFile.getBytes());
+            } else if (body != null && body.containsKey("imageBase64")) {
                 imageBase64 = body.get("imageBase64");
             }
-
-            if ((imageBase64 == null || imageBase64.trim().isEmpty()) && imageFile != null && !imageFile.isEmpty()) {
-                imageBase64 = Base64.getEncoder().encodeToString(imageFile.getBytes());
+            
+            if (imageBase64 == null || imageBase64.trim().isEmpty()) {
+                return Result.error("请提供图片");
             }
-
+            
             Map<String, Object> result = ocrService.extractPackageInfo(imageBase64);
             return Result.success(result);
         } catch (IllegalArgumentException ex) {
