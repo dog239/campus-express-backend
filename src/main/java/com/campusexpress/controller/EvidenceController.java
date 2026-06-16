@@ -37,7 +37,7 @@ public class EvidenceController {
         this.jwtUtil = jwtUtil;
     }
 
-    @PostMapping("/upload/{orderId}")
+    @PostMapping(value = "/upload/{orderId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Upload evidence photo", description = "Upload delivery evidence photo, add watermark and store it")
     public Result<Map<String, Object>> uploadEvidence(
             @RequestHeader(value = "Authorization", required = false) String authorization,

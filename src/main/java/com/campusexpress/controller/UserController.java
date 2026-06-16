@@ -207,7 +207,7 @@ public class UserController {
     @Operation(summary = "Upload avatar", description = "Upload user avatar")
     public Result<Map<String, String>> uploadAvatar(
             @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestPart("file") MultipartFile file) {
+            @RequestParam("file") MultipartFile file) {
         try {
             if (authorization == null || authorization.isEmpty()) {
                 return Result.error("缺少 token");
