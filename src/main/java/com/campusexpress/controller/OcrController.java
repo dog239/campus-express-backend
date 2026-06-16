@@ -39,7 +39,7 @@ public class OcrController {
         }
     }
 
-    @PostMapping(value = "/uploadFile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping("/uploadFile")
     public Result<Map<String, Object>> uploadFile(@RequestParam("imageFile") MultipartFile imageFile) {
         try {
             if (imageFile == null || imageFile.isEmpty()) {
