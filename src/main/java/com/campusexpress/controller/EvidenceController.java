@@ -61,8 +61,13 @@ public class EvidenceController {
     @Operation(summary = "View evidence photo", description = "View the uploaded evidence photo by order ID")
     public ResponseEntity<byte[]> viewEvidence(
             @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam(value = "token", required = false) String tokenParam,
             @PathVariable Long orderId) {
-        User currentUser = getCurrentUser(authorization);
+        String token = authorization;
+        if (token == null || token.isEmpty()) {
+            token = tokenParam;
+        }
+        User currentUser = getCurrentUser(token);
         EvidenceService.EvidenceFile evidenceFile = evidenceService.viewEvidence(orderId, currentUser.getId());
         MediaType mediaType = MediaType.parseMediaType(evidenceFile.getContentType());
 
