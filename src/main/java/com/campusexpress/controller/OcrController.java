@@ -2,11 +2,10 @@ package com.campusexpress.controller;
 
 import com.campusexpress.common.Result;
 import com.campusexpress.service.OcrService;
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -40,7 +39,7 @@ public class OcrController {
     }
 
     @PostMapping("/uploadFile")
-    public Result<Map<String, Object>> uploadFile(@RequestParam("imageFile") MultipartFile imageFile) {
+    public Result<Map<String, Object>> uploadFile(@RequestPart("imageFile") MultipartFile imageFile) {
         try {
             if (imageFile == null || imageFile.isEmpty()) {
                 return Result.error("请提供图片文件");
