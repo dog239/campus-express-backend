@@ -7,6 +7,8 @@ import com.campusexpress.config.WechatProperties;
 import com.campusexpress.entity.User;
 import com.campusexpress.mapper.UserMapper;
 import com.campusexpress.util.JwtUtil;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
@@ -423,5 +425,27 @@ public class UserService {
         } catch (Exception e) {
             throw new RuntimeException("上传头像失败: " + e.getMessage(), e);
         }
+    }
+
+    public ResponseEntity<byte[]> getAvatar(String openid) {
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("openid", openid));
+        if (user == null) {
+            throw new IllegalArgumentException("用户不存在");
+        }
+        
+        String avatarPath = user.getAvatar();
+        if (avatarPath == null || avatarPath.isEmpty()) {
+            throw new IllegalArgumentException("用户未设置头像");
+        }
+        
+        EvidenceStorageService.StoredFile storedFile = evidenceStorageService.download(avatarPath);
+        String contentType = storedFile.getContentType();
+        if (contentType == null || contentType.isEmpty()) {
+            contentType = "image/jpeg";
+        }
+        
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .body(storedFile.getContent());
     }
 }

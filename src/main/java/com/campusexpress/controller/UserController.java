@@ -7,6 +7,7 @@ import com.campusexpress.util.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -220,6 +221,27 @@ public class UserController {
             return Result.success(result);
         } catch (Exception e) {
             return Result.error(e.getMessage());
+        }
+    }
+
+    @GetMapping("/avatar")
+    @Operation(summary = "Get avatar", description = "Get user avatar image")
+    public ResponseEntity<byte[]> getAvatar(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam(value = "token", required = false) String tokenParam) {
+        try {
+            String token = authorization;
+            if (token == null || token.isEmpty()) {
+                token = tokenParam;
+            }
+            if (token == null || token.isEmpty()) {
+                throw new IllegalArgumentException("缺少 token");
+            }
+            
+            String openid = jwtUtil.parseToken(token);
+            return userService.getAvatar(openid);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(e.getMessage());
         }
     }
 }
