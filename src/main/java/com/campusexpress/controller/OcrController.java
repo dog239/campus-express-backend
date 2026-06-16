@@ -40,10 +40,8 @@ public class OcrController {
                 imageBase64 = Base64.getEncoder().encodeToString(imageFile.getBytes());
             }
 
-            List<String> codes = ocrService.extractCodes(imageBase64);
-            Map<String, Object> response = new HashMap<>();
-            response.put("codes", codes);
-            return Result.success(response);
+            Map<String, Object> result = ocrService.extractPackageInfo(imageBase64);
+            return Result.success(result);
         } catch (IllegalArgumentException ex) {
             return Result.error(ex.getMessage());
         } catch (Exception ex) {

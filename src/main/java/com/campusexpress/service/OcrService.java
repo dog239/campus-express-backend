@@ -15,6 +15,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +26,10 @@ import java.util.regex.Pattern;
 @Service
 public class OcrService {
 
-    private static final Pattern CODE_PATTERN = Pattern.compile("\\b\\d{6,8}\\b");
+    private static final Pattern CODE_PATTERN = Pattern.compile(
+            "\\b(?:[A-Z]?\\d{2,6}|\\d{4,8}|[A-Z]\\d{4,8}|\\d+-\\d+-?\\d*|\\d{4,8}-[A-Z]?\\d{2,4})\\b",
+            Pattern.CASE_INSENSITIVE
+    );
 
     private final OcrProperties ocrProperties;
     private final RestTemplate restTemplate = new RestTemplate();
@@ -51,6 +55,59 @@ public class OcrService {
         }
 
         return new ArrayList<>(codes);
+    }
+
+    public Map<String, Object> extractPackageInfo(String imageBase64) {
+        if (imageBase64 == null || imageBase64.trim().isEmpty()) {
+            throw new IllegalArgumentException("请提供 imageBase64 或 imageFile");
+        }
+
+        String normalizedImage = normalizeBase64(imageBase64);
+        List<String> textLines = callBaiduOcr(normalizedImage);
+        
+        Set<String> codes = parseCodes(textLines);
+        String station = extractStation(textLines);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("codes", new ArrayList<>(codes));
+        result.put("station", station);
+        
+        if (!codes.isEmpty()) {
+            result.put("code", codes.iterator().next());
+        }
+        
+        return result;
+    }
+
+    private String extractStation(List<String> lines) {
+        String fullText = String.join("", lines);
+        
+        // 1. 匹配「到XXX」或「已到XXX」
+        Matcher arriveMatch = Pattern.compile("(?:到|已到|到达|已送达)\\s*([^，,。！？]+)").matcher(fullText);
+        if (arriveMatch.find()) {
+            String result = arriveMatch.group(1).trim();
+            // 检查是否包含驿站关键词
+            String[] stationKeywords = {"京东服务站", "妈妈驿站", "近邻宝", "菜鸟驿站", "顺丰驿站", "丰巢", "驿小哥", "京东驿站"};
+            for (String kw : stationKeywords) {
+                if (result.contains(kw)) {
+                    int idx = result.indexOf(kw) + kw.length();
+                    return result.substring(0, idx);
+                }
+            }
+            if (result.length() > 2 && result.length() <= 30) {
+                return result;
+            }
+        }
+        
+        // 2. 匹配关键词
+        String[] keywords = {"妈妈驿站", "近邻宝院内", "近邻宝", "菜鸟驿站", "京东服务站", "顺丰驿站", "丰巢快递柜", "丰巢", "驿小哥", "京东驿站"};
+        for (String kw : keywords) {
+            if (fullText.contains(kw)) {
+                return kw;
+            }
+        }
+        
+        return "未知驿站";
     }
 
     private String normalizeBase64(String imageBase64) {
@@ -162,9 +219,27 @@ public class OcrService {
     private Set<String> parseCodes(List<String> lines) {
         Set<String> result = new LinkedHashSet<>();
         for (String line : lines) {
+            // 先尝试匹配取件码关键词
+            String[] keywords = {"取件码", "取货码", "凭", "尾号", "验证码"};
+            for (String kw : keywords) {
+                Pattern p = Pattern.compile(kw + "\\s*[:：]?\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE);
+                Matcher m = p.matcher(line);
+                if (m.find()) {
+                    String code = m.group(1);
+                    if (code.length() >= 2 && code.length() <= 20) {
+                        result.add(code);
+                    }
+                    break;
+                }
+            }
+            // 再用通用正则匹配
             Matcher matcher = CODE_PATTERN.matcher(line);
             while (matcher.find()) {
-                result.add(matcher.group());
+                String code = matcher.group();
+                // 过滤掉太短或太长的
+                if (code.length() >= 2 && code.length() <= 20) {
+                    result.add(code);
+                }
             }
         }
         return result;
