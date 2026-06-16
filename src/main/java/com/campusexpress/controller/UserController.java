@@ -203,7 +203,7 @@ public class UserController {
         }
     }
 
-    @PostMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/avatar", consumes = "multipart/form-data")
     @Operation(summary = "Upload avatar", description = "Upload user avatar")
     public Result<Map<String, String>> uploadAvatar(
             @RequestHeader(value = "Authorization", required = false) String authorization,
