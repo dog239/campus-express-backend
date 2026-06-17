@@ -58,77 +58,105 @@ public class OcrService {
     }
 
     public Map<String, Object> extractPackageInfo(String imageBase64) {
+        System.out.println("=== extractPackageInfo 开始执行 ===");
+        System.out.println("=== imageBase64 长度: " + (imageBase64 != null ? imageBase64.length() : 0));
+        
         if (imageBase64 == null || imageBase64.trim().isEmpty()) {
-            throw new IllegalArgumentException("请提供 imageBase64 或 imageFile");
+            throw new IllegalArgumentException("请提供图片");
         }
 
         String normalizedImage = normalizeBase64(imageBase64);
+        System.out.println("=== 规范化后 base64 长度: " + normalizedImage.length());
+
+        System.out.println("=== 准备调用百度 OCR...");
         List<String> textLines = callBaiduOcr(normalizedImage);
+        System.out.println("=== 百度 OCR 返回文字行数: " + (textLines != null ? textLines.size() : 0));
         
-        Set<String> codes = parseCodes(textLines);
-        String station = extractStation(textLines);
+        String fullText = String.join("", textLines);
+        System.out.println("=== OCR 识别全文: " + fullText);
+        
+        String code = extractCode(fullText);
+        System.out.println("=== 提取取件码: " + code);
+        
+        String station = extractStation(fullText);
+        System.out.println("=== 提取驿站: " + station);
         
         Map<String, Object> result = new HashMap<>();
-        result.put("codes", new ArrayList<>(codes));
+        result.put("code", code);
         result.put("station", station);
         
-        if (!codes.isEmpty()) {
-            result.put("code", codes.iterator().next());
-        }
-        
+        System.out.println("=== 最终结果: " + result);
         return result;
     }
 
-    private String extractStation(List<String> lines) {
-        String fullText = String.join("\n", lines);
+    private String extractCode(String text) {
+        System.out.println("=== 开始提取取件码，文本长度: " + text.length());
         
-        // 1. 优先匹配「取件地址：」或「地址：」后的内容
-        Pattern addrPattern = Pattern.compile("(?:取件地址|地址)\\s*[:：]?\\s*(.+?)(?:\n|$)");
-        Matcher addrMatcher = addrPattern.matcher(fullText);
-        if (addrMatcher.find()) {
-            String address = addrMatcher.group(1).trim();
-            // 清理末尾的无关字符
-            address = address.replaceAll("[，,。！？\\s]+$", "");
-            if (address.length() >= 5 && address.length() <= 100) {
-                return address;
-            }
-        }
+        Pattern[] patterns = {
+            Pattern.compile("凭[「【]?\\s*([A-Z0-9]+-[A-Z0-9]+(?:-[A-Z0-9]+)?)\\s*[」】]?\\s*到", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("凭[「【]?\\s*(\\d{4,8})\\s*[」】]?\\s*到", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("取货码\\s*([A-Z0-9]+-[A-Z0-9]+(?:-[A-Z0-9]+)?)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("取货码\\s*(\\d{4,8})", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("取件码\\s*([A-Z0-9]+-[A-Z0-9]+(?:-[A-Z0-9]+)?)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("取件码\\s*(\\d{4,8})", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("可凭\\s*(\\d{4,8})\\s*到店", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("凭\\s*(\\d{4,8})\\s*到店", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("\\b(\\d{4,8})\\b")
+        };
         
-        // 2. 匹配「到XXX」或「已到XXX」
-        Matcher arriveMatch = Pattern.compile("(?:到|已到|到达|已送达)\\s*([^，,。！？\n]+)").matcher(fullText);
-        if (arriveMatch.find()) {
-            String result = arriveMatch.group(1).trim();
-            String[] stationKeywords = {"京东服务站", "妈妈驿站", "近邻宝", "菜鸟驿站", "顺丰驿站", "丰巢", "驿小哥", "京东驿站"};
-            for (String kw : stationKeywords) {
-                if (result.contains(kw)) {
-                    int idx = result.indexOf(kw) + kw.length();
-                    return result.substring(0, idx);
-                }
-            }
-            if (result.length() > 2 && result.length() <= 50) {
+        for (Pattern p : patterns) {
+            Matcher m = p.matcher(text);
+            if (m.find()) {
+                String result = m.group(1).trim();
+                System.out.println("=== 匹配到取件码: " + result + " 使用模式: " + p.pattern());
                 return result;
             }
         }
         
-        // 3. 匹配驿站关键词并提取完整名称
-        String[] keywords = {"妈妈驿站", "近邻宝院内", "近邻宝", "菜鸟驿站", "京东服务站", "顺丰驿站", "丰巢快递柜", "丰巢", "驿小哥", "京东驿站"};
-        for (String kw : keywords) {
-            int idx = fullText.indexOf(kw);
-            if (idx >= 0) {
-                // 尝试向前提取地址（最多20个字符）
-                int start = Math.max(0, idx - 20);
-                String before = fullText.substring(start, idx);
-                // 找到地址起始点（取件地址、地址、到、已到等关键词）
-                Pattern startPattern = Pattern.compile("(?:取件地址|地址|到|已到)[:：]?\\s*$");
-                Matcher startMatcher = startPattern.matcher(before);
-                if (startMatcher.find()) {
-                    return fullText.substring(start + startMatcher.start(), idx + kw.length()).trim();
+        System.out.println("=== 未匹配到任何取件码");
+        return null;
+    }
+    
+    private String extractStation(String text) {
+        System.out.println("=== 开始提取驿站，文本长度: " + text.length());
+        
+        Pattern[] patterns = {
+            Pattern.compile("(?:取件地址|地址)[:：]?\\s*([^，,。！？\\n]{2,40})", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("到\\s*([^，,。！？\\n]{2,40}(?:号柜|柜|店|驿站))", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("到\\s*([^，,。！？\\n]{2,30})", Pattern.CASE_INSENSITIVE)
+        };
+        
+        for (Pattern p : patterns) {
+            Matcher m = p.matcher(text);
+            if (m.find()) {
+                String result = m.group(1).trim();
+                if (result.length() > 2) {
+                    System.out.println("=== 匹配到驿站: " + result);
+                    return result;
                 }
-                // 如果没有找到起始关键词，返回关键词本身
-                return kw;
             }
         }
         
+        String[] stations = {
+            "妈妈驿站", "近邻宝院内", "近邻宝", "菜鸟驿站",
+            "兔喜生活", "兔喜超市", "顺丰驿站", "顺丰代签收",
+            "丰巢快递柜", "丰巢", "京东驿站", "京东服务站",
+            "比比吃旁菜鸟驿站", "比比吃", "快递柜"
+        };
+        for (String s : stations) {
+            if (text.contains(s)) {
+                System.out.println("=== 匹配到已知驿站: " + s);
+                return s;
+            }
+        }
+        
+        Matcher senderMatch = Pattern.compile("【([^】]+)】").matcher(text);
+        if (senderMatch.find()) {
+            System.out.println("=== 匹配到发送方: " + senderMatch.group(1));
+            return senderMatch.group(1);
+        }
+        
+        System.out.println("=== 未匹配到驿站");
         return "未知驿站";
     }
 
@@ -142,44 +170,53 @@ public class OcrService {
     }
 
     private List<String> callBaiduOcr(String imageBase64) {
-        String token = getAccessToken();
-        String url = ocrProperties.getGeneralUrl() + "?access_token=" + urlEncode(token);
+        try {
+            String token = getAccessToken();
+            String url = ocrProperties.getGeneralUrl() + "?access_token=" + urlEncode(token);
+            System.out.println("=== 调用百度 OCR URL: " + url);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-        body.add("image", imageBase64);
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("image", imageBase64);
 
-        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> response = restTemplate.postForObject(url, request, Map.class);
+            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = restTemplate.postForObject(url, request, Map.class);
 
-        if (response == null) {
-            throw new IllegalStateException("百度 OCR 返回为空");
-        }
-        if (response.containsKey("error_code")) {
-            Object errorCode = response.get("error_code");
-            Object errorMsg = response.get("error_msg");
-            throw new IllegalStateException("百度 OCR 失败: " + errorCode + " " + errorMsg);
-        }
+            System.out.println("=== 百度 OCR 返回结果: " + response);
 
-        Object wordsResult = response.get("words_result");
-        if (!(wordsResult instanceof List)) {
-            throw new IllegalStateException("百度 OCR 返回格式异常");
-        }
+            if (response == null) {
+                throw new IllegalStateException("百度 OCR 返回为空");
+            }
+            if (response.containsKey("error_code")) {
+                System.err.println("=== 百度 OCR 错误: " + response.get("error_code") + " " + response.get("error_msg"));
+                throw new IllegalStateException("百度 OCR 失败: " + response.get("error_code") + " " + response.get("error_msg"));
+            }
 
-        List<String> lines = new ArrayList<>();
-        for (Object item : (List<?>) wordsResult) {
-            if (item instanceof Map) {
-                Object words = ((Map<?, ?>) item).get("words");
-                if (words != null) {
-                    lines.add(String.valueOf(words));
+            Object wordsResult = response.get("words_result");
+            if (!(wordsResult instanceof List)) {
+                throw new IllegalStateException("百度 OCR 返回格式异常");
+            }
+
+            List<String> lines = new ArrayList<>();
+            for (Object item : (List<?>) wordsResult) {
+                if (item instanceof Map) {
+                    Object words = ((Map<?, ?>) item).get("words");
+                    if (words != null) {
+                        lines.add(String.valueOf(words));
+                    }
                 }
             }
-        }
 
-        return lines;
+            System.out.println("=== OCR 识别到的文字行数: " + lines.size());
+            return lines;
+        } catch (Exception e) {
+            System.err.println("=== 百度 OCR 调用异常: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("百度 OCR 调用失败: " + e.getMessage(), e);
+        }
     }
 
     private synchronized String getAccessToken() {
@@ -238,86 +275,4 @@ public class OcrService {
         }
     }
 
-    private Set<String> parseCodes(List<String> lines) {
-        Set<String> result = new LinkedHashSet<>();
-        String fullText = String.join("\n", lines);
-        
-        // 优先级1：匹配关键词后的取件码（支持连字符格式和纯数字）
-        String[] keywords = {"取货码", "取件码", "凭", "尾号", "验证码"};
-        for (String kw : keywords) {
-            // 先匹配连字符格式
-            Pattern p1 = Pattern.compile(kw + "\\s*[:：]?\\s*([A-Z0-9]+(?:-[A-Z0-9]+)+)", Pattern.CASE_INSENSITIVE);
-            Matcher m1 = p1.matcher(fullText);
-            while (m1.find()) {
-                String code = m1.group(1).trim();
-                result.add(code);
-            }
-            // 再匹配纯数字或字母数字格式
-            Pattern p2 = Pattern.compile(kw + "\\s*[:：]?\\s*([A-Z0-9]{4,10})", Pattern.CASE_INSENSITIVE);
-            Matcher m2 = p2.matcher(fullText);
-            while (m2.find()) {
-                String code = m2.group(1).trim();
-                if (isValidCode(code)) {
-                    result.add(code);
-                }
-            }
-        }
-        
-        // 如果已找到取件码，直接返回
-        if (!result.isEmpty()) {
-            return result;
-        }
-        
-        // 优先级2：直接匹配连字符格式（2834-2569、7-1-1914、S-2-2095）
-        Pattern hyphenPattern = Pattern.compile("\\b([A-Z0-9]+(?:-[A-Z0-9]+)+)\\b", Pattern.CASE_INSENSITIVE);
-        Matcher m = hyphenPattern.matcher(fullText);
-        while (m.find()) {
-            String code = m.group(1).trim();
-            if (isValidCode(code)) {
-                result.add(code);
-            }
-        }
-        
-        // 优先级3：直接匹配纯数字格式（4-8位）
-        if (result.isEmpty()) {
-            Pattern numPattern = Pattern.compile("\\b(\\d{4,8})\\b");
-            Matcher numMatcher = numPattern.matcher(fullText);
-            while (numMatcher.find()) {
-                String code = numMatcher.group(1).trim();
-                result.add(code);
-            }
-        }
-        
-        // 优先级4：通用正则匹配（排除时间格式）
-        if (result.isEmpty()) {
-            for (String line : lines) {
-                if (line.matches(".*\\d{1,2}:\\d{2}.*") || line.contains("取件时间") || line.contains("营业时间")) {
-                    continue;
-                }
-                Matcher matcher = CODE_PATTERN.matcher(line);
-                while (matcher.find()) {
-                    String code = matcher.group();
-                    if (isValidCode(code)) {
-                        result.add(code);
-                    }
-                }
-            }
-        }
-        return result;
-    }
-    
-    private boolean isValidCode(String code) {
-        if (code == null || code.length() < 3 || code.length() > 20) {
-            return false;
-        }
-        // 排除纯数字且长度小于4的（可能是时间、日期的一部分）
-        if (code.matches("\\d+") && code.length() < 4) {
-            return false;
-        }
-        // 排除时间格式
-        if (code.matches("\\d{1,2}:\\d{2}.*")) {
-            return false;
-        }
-        return true;
-    }
 }
