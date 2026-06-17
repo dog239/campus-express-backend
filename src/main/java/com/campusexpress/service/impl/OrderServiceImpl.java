@@ -328,4 +328,20 @@ public class OrderServiceImpl implements OrderService {
         
         orderMapper.deleteById(orderId);
     }
+
+    @Override
+    public void updatePhoto(Long orderId, Long userId, String photoUrl) {
+        Order order = orderMapper.selectById(orderId);
+        if (order == null) {
+            throw new IllegalArgumentException("订单不存在");
+        }
+        
+        if (!order.getRequesterId().equals(userId) && 
+            (order.getReceiverId() == null || !order.getReceiverId().equals(userId))) {
+            throw new IllegalArgumentException("只有订单相关用户可以更新凭证照片");
+        }
+        
+        order.setPhotoUrl(photoUrl);
+        orderMapper.updateById(order);
+    }
 }

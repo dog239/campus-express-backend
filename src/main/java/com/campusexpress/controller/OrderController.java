@@ -177,6 +177,25 @@ public class OrderController {
         }
     }
 
+    @PostMapping("/photo/{orderId}")
+    @Operation(summary = "Update order photo", description = "Update order evidence photo URL")
+    public Result<String> updatePhoto(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable Long orderId,
+            @RequestBody Map<String, String> request) {
+        try {
+            User currentUser = getCurrentUser(authorization);
+            String photoUrl = request.get("photoUrl");
+            if (photoUrl == null || photoUrl.isEmpty()) {
+                return Result.error("photoUrl 不能为空");
+            }
+            orderService.updatePhoto(orderId, currentUser.getId(), photoUrl);
+            return Result.success("更新成功");
+        } catch (Exception ex) {
+            return Result.error(ex.getMessage());
+        }
+    }
+
     private User getCurrentUser(String authorization) {
         if (authorization == null || authorization.isEmpty()) {
             throw new IllegalArgumentException("缺少 token");

@@ -89,4 +89,12 @@ public interface OrderService {
      * @param userId 用户ID
      */
     void deleteOrder(Long orderId, Long userId);
+
+    /**
+     * 更新订单凭证照片
+     * @param orderId 订单ID
+     * @param userId 用户ID
+     * @param photoUrl 照片URL
+     */
+    void updatePhoto(Long orderId, Long userId, String photoUrl);
 }
