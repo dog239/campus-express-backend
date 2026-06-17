@@ -218,26 +218,31 @@ public class OcrService {
             String result = toMatcher.group(1).trim();
             if (result.length() > 2 && 
                 (result.contains("柜") || result.contains("店") || result.contains("驿站") || 
-                 result.contains("货架") || result.contains("房后") || result.contains("近邻宝"))) {
+                 result.contains("货架") || result.contains("房后") || result.contains("近邻宝") ||
+                 result.matches(".*\\d+号.*") || result.matches(".*[A-Z]\\d+.*"))) {
                 return result;
             }
         }
         
-        // 3. 匹配已知驿站关键词
-        String[][] stationKeywords = {
-            {"交通大学南门近邻宝院内货架", "交通大学南门近邻宝院内货架"},
-            {"交大南门外近邻宝房后", "交大南门外近邻宝房后"},
-            {"交大南门近邻宝", "交大南门近邻宝"},
-            {"近邻宝院内", "近邻宝院内"},
-            {"近邻宝", "近邻宝"},
-            {"妈妈驿站", "妈妈驿站"},
-            {"菜鸟驿站", "菜鸟驿站"},
-            {"兔喜生活", "兔喜生活"}
-        };
-        for (String[] pair : stationKeywords) {
-            if (line.contains(pair[0])) {
-                return pair[1];
+        // 3. 匹配「凭XXX到XXX」格式
+        Pattern凭ToPattern = Pattern.compile("凭\\s*[A-Z0-9\\-]+\\s*到\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
+        Matcher凭ToMatcher =凭ToPattern.matcher(line);
+        if (凭ToMatcher.find()) {
+            String result = 凭ToMatcher.group(1).trim();
+            if (result.length() > 2) {
+                return result;
             }
+        }
+        
+        // 4. 匹配已知驿站关键词并提取后面的位置信息
+        Pattern keywordWithPosPattern = Pattern.compile(
+            "(交大南门\\d+号柜[A-Z0-9]+|交大南门外近邻宝房后\\d+号[A-Z0-9]+|交通大学南门近邻宝院内货架|" +
+            "交大南门近邻宝|近邻宝院内|近邻宝|妈妈驿站|菜鸟驿站|兔喜生活)",
+            Pattern.CASE_INSENSITIVE
+        );
+        Matcher keywordWithPosMatcher = keywordWithPosPattern.matcher(line);
+        if (keywordWithPosMatcher.find()) {
+            return keywordWithPosMatcher.group(1).trim();
         }
         
         return null;
@@ -336,56 +341,50 @@ public class OcrService {
             }
         }
         
-        // 3. 匹配「到XXX柜」或「到XXX号柜」
-        Pattern cabinetPattern = Pattern.compile("到\\s*([^，,。！？\\n]{3,40})", Pattern.CASE_INSENSITIVE);
-        Matcher cabinetMatcher = cabinetPattern.matcher(text);
-        String lastCabinet = null;
-        while (cabinetMatcher.find()) {
-            String result = cabinetMatcher.group(1).trim();
+        // 3. 匹配「凭XXX到XXX」格式（提取完整位置）
+        Pattern凭ToPattern = Pattern.compile("凭\\s*[A-Z0-9\\-]+\\s*到\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
+        Matcher凭ToMatcher =凭ToPattern.matcher(text);
+        String last凭To = null;
+        while (凭ToMatcher.find()) {
+            last凭To = 凭ToMatcher.group(1).trim();
+        }
+        if (last凭To != null && last凭To.length() > 3) {
+            System.out.println("=== 匹配到凭...到: " + last凭To);
+            return last凭To;
+        }
+        
+        // 4. 匹配「到XXX」提取完整位置（包括柜号、位置编号等）
+        Pattern toPattern = Pattern.compile("到\\s*([^，,。！？\\n]{2,50})", Pattern.CASE_INSENSITIVE);
+        Matcher toMatcher = toPattern.matcher(text);
+        String lastTo = null;
+        while (toMatcher.find()) {
+            String result = toMatcher.group(1).trim();
+            // 优先选择包含位置信息的
             if (result.contains("柜") || result.contains("店") || result.contains("驿站") || 
-                result.contains("货架") || result.contains("房后") || result.contains("近邻宝")) {
-                lastCabinet = result;
+                result.contains("货架") || result.contains("房后") || result.contains("近邻宝") ||
+                result.matches(".*\\d+号.*") || result.matches(".*[A-Z]\\d+.*")) {
+                lastTo = result;
             }
         }
-        if (lastCabinet != null && lastCabinet.length() > 3) {
-            System.out.println("=== 匹配到柜号: " + lastCabinet);
-            return lastCabinet;
-        }
-        
-        // 4. 匹配「到XXX」或「已到XXX」
-        Pattern arrivePattern = Pattern.compile("(?:到|已到|到达|已送达)\\s*([^，,。！？\\n]{3,30})", Pattern.CASE_INSENSITIVE);
-        Matcher arriveMatcher = arrivePattern.matcher(text);
-        if (arriveMatcher.find()) {
-            String result = arriveMatcher.group(1).trim();
-            if (result.length() > 3) {
-                System.out.println("=== 匹配到到: " + result);
-                return result;
-            }
+        if (lastTo != null && lastTo.length() > 2) {
+            System.out.println("=== 匹配到到: " + lastTo);
+            return lastTo;
         }
         
-        // 5. 匹配已知驿站关键词（按优先级排序，优先匹配更完整的）
-        String[][] stationKeywords = {
-            {"交通大学南门近邻宝院内货架", "交通大学南门近邻宝院内货架"},
-            {"交通大学南门近邻宝", "交通大学南门近邻宝"},
-            {"近邻宝院内", "近邻宝院内"},
-            {"近邻宝", "近邻宝"},
-            {"妈妈驿站", "妈妈驿站"},
-            {"菜鸟驿站", "菜鸟驿站"},
-            {"兔喜生活", "兔喜生活"},
-            {"顺丰驿站", "顺丰驿站"},
-            {"顺丰代签收", "顺丰代签收"},
-            {"丰巢快递柜", "丰巢快递柜"},
-            {"丰巢", "丰巢"},
-            {"京东驿站", "京东驿站"},
-            {"京东服务站", "京东服务站"},
-            {"比比吃旁菜鸟驿站", "比比吃旁菜鸟驿站"},
-            {"比比吃", "比比吃"}
-        };
-        for (String[] pair : stationKeywords) {
-            if (text.contains(pair[0])) {
-                System.out.println("=== 匹配到已知驿站: " + pair[1]);
-                return pair[1];
-            }
+        // 5. 匹配已知驿站关键词并提取后面的位置信息
+        Pattern keywordWithPosPattern = Pattern.compile(
+            "(交大南门\\d+号柜[A-Z0-9]+|交大南门外近邻宝房后\\d+号[A-Z0-9]+|交通大学南门近邻宝院内货架|" +
+            "交大南门近邻宝|近邻宝院内|近邻宝|妈妈驿站|菜鸟驿站|兔喜生活|顺丰驿站|丰巢快递柜|丰巢|京东驿站)",
+            Pattern.CASE_INSENSITIVE
+        );
+        Matcher keywordWithPosMatcher = keywordWithPosPattern.matcher(text);
+        String lastKeyword = null;
+        while (keywordWithPosMatcher.find()) {
+            lastKeyword = keywordWithPosMatcher.group(1).trim();
+        }
+        if (lastKeyword != null) {
+            System.out.println("=== 匹配到已知驿站: " + lastKeyword);
+            return lastKeyword;
         }
         
         // 6. 提取发送方名称
