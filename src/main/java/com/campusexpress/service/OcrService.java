@@ -242,43 +242,49 @@ public class OcrService {
         Set<String> result = new LinkedHashSet<>();
         String fullText = String.join("\n", lines);
         
-        // 优先级1：匹配关键词后的取件码（支持连字符格式）
+        // 优先级1：匹配关键词后的取件码（支持连字符格式和纯数字）
         String[] keywords = {"取货码", "取件码", "凭", "尾号", "验证码"};
         for (String kw : keywords) {
-            Pattern p = Pattern.compile(kw + "\\s*[:：]?\\s*([A-Z0-9]+(?:-[A-Z0-9]+)+)", Pattern.CASE_INSENSITIVE);
-            Matcher m = p.matcher(fullText);
-            while (m.find()) {
-                String code = m.group(1).trim();
+            // 先匹配连字符格式
+            Pattern p1 = Pattern.compile(kw + "\\s*[:：]?\\s*([A-Z0-9]+(?:-[A-Z0-9]+)+)", Pattern.CASE_INSENSITIVE);
+            Matcher m1 = p1.matcher(fullText);
+            while (m1.find()) {
+                String code = m1.group(1).trim();
                 result.add(code);
             }
-        }
-        
-        // 优先级2：直接匹配连字符格式（2834-2569、7-1-1914、S-2-2095）
-        if (result.isEmpty()) {
-            Pattern hyphenPattern = Pattern.compile("\\b([A-Z0-9]+(?:-[A-Z0-9]+)+)\\b", Pattern.CASE_INSENSITIVE);
-            Matcher m = hyphenPattern.matcher(fullText);
-            while (m.find()) {
-                String code = m.group(1).trim();
+            // 再匹配纯数字或字母数字格式
+            Pattern p2 = Pattern.compile(kw + "\\s*[:：]?\\s*([A-Z0-9]{4,10})", Pattern.CASE_INSENSITIVE);
+            Matcher m2 = p2.matcher(fullText);
+            while (m2.find()) {
+                String code = m2.group(1).trim();
                 if (isValidCode(code)) {
                     result.add(code);
                 }
             }
         }
         
-        // 如果已找到连字符格式的取件码，直接返回
+        // 如果已找到取件码，直接返回
         if (!result.isEmpty()) {
             return result;
         }
         
-        // 优先级3：匹配关键词后的普通取件码
-        for (String kw : keywords) {
-            Pattern p = Pattern.compile(kw + "\\s*[:：]?\\s*([A-Z0-9]{4,10})", Pattern.CASE_INSENSITIVE);
-            Matcher m = p.matcher(fullText);
-            while (m.find()) {
-                String code = m.group(1).trim();
-                if (isValidCode(code)) {
-                    result.add(code);
-                }
+        // 优先级2：直接匹配连字符格式（2834-2569、7-1-1914、S-2-2095）
+        Pattern hyphenPattern = Pattern.compile("\\b([A-Z0-9]+(?:-[A-Z0-9]+)+)\\b", Pattern.CASE_INSENSITIVE);
+        Matcher m = hyphenPattern.matcher(fullText);
+        while (m.find()) {
+            String code = m.group(1).trim();
+            if (isValidCode(code)) {
+                result.add(code);
+            }
+        }
+        
+        // 优先级3：直接匹配纯数字格式（4-8位）
+        if (result.isEmpty()) {
+            Pattern numPattern = Pattern.compile("\\b(\\d{4,8})\\b");
+            Matcher numMatcher = numPattern.matcher(fullText);
+            while (numMatcher.find()) {
+                String code = numMatcher.group(1).trim();
+                result.add(code);
             }
         }
         
