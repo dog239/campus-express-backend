@@ -81,7 +81,7 @@ public class OcrService {
     }
 
     /**
-     * 提取每个快递的信息（取件码 + 驿站地址）
+     * 提取每个快递的信息（取件码 + 驿站地址 + 到达时间）
      */
     private List<Map<String, String>> extractPackages(String text) {
         List<Map<String, String>> packages = new ArrayList<>();
@@ -103,16 +103,37 @@ public class OcrService {
                 Map<String, String> pkg = new java.util.HashMap<>();
                 pkg.put("code", code);
                 pkg.put("station", defaultStation);
+                pkg.put("arrivalDate", "");
                 packages.add(pkg);
             }
             return packages;
         }
         
-        // 2. 对每个取件码，提取它后面的文本
+        // 时间匹配模式
+        Pattern timePattern = Pattern.compile("(\\d{1,2}月\\d{1,2}日\\s*\\d{1,2}[:：]\\d{2})", Pattern.CASE_INSENSITIVE);
+        
+        // 2. 对每个取件码，提取它后面的文本和前面的时间
         for (int i = 0; i < codePositions.size(); i++) {
             int codeStart = codePositions.get(i)[0];
             int codeEnd = codePositions.get(i)[1];
             String code = mergedText.substring(codeStart, codeEnd);
+            
+            // 提取该取件码前面的文本（找时间，取前200个字符）
+            int beforeStart = Math.max(0, codeStart - 200);
+            String beforeText = mergedText.substring(beforeStart, codeStart);
+            
+            // 找到最近的时间
+            Matcher timeMatcher = timePattern.matcher(beforeText);
+            String time = null;
+            while (timeMatcher.find()) {
+                time = timeMatcher.group(1).trim();
+            }
+            
+            // 转换时间为标准格式
+            String arrivalDate = null;
+            if (time != null) {
+                arrivalDate = convertTimeToDate(time);
+            }
             
             // 提取该取件码后面的文本（限制长度为80字符）
             int maxContextLen = 80;
@@ -128,10 +149,10 @@ public class OcrService {
             
             String context = mergedText.substring(codeEnd, contextEnd);
             
-            // 清理上下文：移除无关内容（如「创建笔记提醒」、「5月4日」等）
+            // 清理上下文：移除无关内容
             context = cleanContext(context);
             
-            System.out.println("=== 取件码: " + code + ", 上下文: " + context);
+            System.out.println("=== 取件码: " + code + ", 上下文: " + context + ", 时间: " + time);
             
             // 3. 从上下文中提取地址
             String station = extractStationFromContext(context);
@@ -139,11 +160,40 @@ public class OcrService {
             Map<String, String> pkg = new java.util.HashMap<>();
             pkg.put("code", code);
             pkg.put("station", station != null ? station : "未知驿站");
+            pkg.put("time", time != null ? time : "");
+            pkg.put("arrivalDate", arrivalDate != null ? arrivalDate : "");
             packages.add(pkg);
-            System.out.println("=== 提取包裹: code=" + code + ", station=" + station);
+            System.out.println("=== 提取包裹: code=" + code + ", station=" + station + ", time=" + time + ", arrivalDate=" + arrivalDate);
         }
         
         return packages;
+    }
+
+    /**
+     * 转换时间格式：3月8日09:15 -> 2026-03-08
+     */
+    private String convertTimeToDate(String time) {
+        try {
+            // 替换全角冒号为半角
+            time = time.replace("：", ":");
+            // 匹配月日和时间
+            Pattern pattern = Pattern.compile("(\\d{1,2})月(\\d{1,2})日\\s*(\\d{1,2}):(\\d{2})");
+            Matcher matcher = pattern.matcher(time);
+            if (matcher.find()) {
+                int month = Integer.parseInt(matcher.group(1));
+                int day = Integer.parseInt(matcher.group(2));
+                // 使用当前年份
+                int year = java.time.LocalDate.now().getYear();
+                // 如果月份大于当前月份，可能是去年的
+                if (month > java.time.LocalDate.now().getMonthValue()) {
+                    year = year - 1;
+                }
+                return String.format("%d-%02d-%02d", year, month, day);
+            }
+        } catch (Exception e) {
+            System.err.println("转换时间失败: " + time);
+        }
+        return null;
     }
 
     /**
