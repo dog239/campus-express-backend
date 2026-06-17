@@ -242,10 +242,37 @@ public class OcrService {
         Set<String> result = new LinkedHashSet<>();
         String fullText = String.join("\n", lines);
         
-        // 优先匹配关键词后的取件码
-        String[] keywords = {"取货码", "取件码", "凭", "尾号", "验证码", "取件码：", "取货码："};
+        // 优先级1：匹配关键词后的取件码（支持连字符格式）
+        String[] keywords = {"取货码", "取件码", "凭", "尾号", "验证码"};
         for (String kw : keywords) {
-            Pattern p = Pattern.compile(kw + "\\s*[:：]?\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE);
+            Pattern p = Pattern.compile(kw + "\\s*[:：]?\\s*([A-Z0-9]+(?:-[A-Z0-9]+)+)", Pattern.CASE_INSENSITIVE);
+            Matcher m = p.matcher(fullText);
+            while (m.find()) {
+                String code = m.group(1).trim();
+                result.add(code);
+            }
+        }
+        
+        // 优先级2：直接匹配连字符格式（2834-2569、7-1-1914、S-2-2095）
+        if (result.isEmpty()) {
+            Pattern hyphenPattern = Pattern.compile("\\b([A-Z0-9]+(?:-[A-Z0-9]+)+)\\b", Pattern.CASE_INSENSITIVE);
+            Matcher m = hyphenPattern.matcher(fullText);
+            while (m.find()) {
+                String code = m.group(1).trim();
+                if (isValidCode(code)) {
+                    result.add(code);
+                }
+            }
+        }
+        
+        // 如果已找到连字符格式的取件码，直接返回
+        if (!result.isEmpty()) {
+            return result;
+        }
+        
+        // 优先级3：匹配关键词后的普通取件码
+        for (String kw : keywords) {
+            Pattern p = Pattern.compile(kw + "\\s*[:：]?\\s*([A-Z0-9]{4,10})", Pattern.CASE_INSENSITIVE);
             Matcher m = p.matcher(fullText);
             while (m.find()) {
                 String code = m.group(1).trim();
@@ -255,22 +282,18 @@ public class OcrService {
             }
         }
         
-        // 如果已找到取件码，直接返回
-        if (!result.isEmpty()) {
-            return result;
-        }
-        
-        // 否则用通用正则匹配（排除时间格式）
-        for (String line : lines) {
-            // 跳过包含时间格式的行
-            if (line.matches(".*\\d{1,2}:\\d{2}.*") || line.contains("取件时间") || line.contains("营业时间")) {
-                continue;
-            }
-            Matcher matcher = CODE_PATTERN.matcher(line);
-            while (matcher.find()) {
-                String code = matcher.group();
-                if (isValidCode(code)) {
-                    result.add(code);
+        // 优先级4：通用正则匹配（排除时间格式）
+        if (result.isEmpty()) {
+            for (String line : lines) {
+                if (line.matches(".*\\d{1,2}:\\d{2}.*") || line.contains("取件时间") || line.contains("营业时间")) {
+                    continue;
+                }
+                Matcher matcher = CODE_PATTERN.matcher(line);
+                while (matcher.find()) {
+                    String code = matcher.group();
+                    if (isValidCode(code)) {
+                        result.add(code);
+                    }
                 }
             }
         }
