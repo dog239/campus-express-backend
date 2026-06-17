@@ -52,25 +52,165 @@ public class OcrService {
         List<String> textLines = callBaiduOcr(normalizedImage);
         System.out.println("=== 百度 OCR 返回文字行数: " + (textLines != null ? textLines.size() : 0));
         
-        String fullText = String.join("", textLines);
+        String fullText = String.join("\n", textLines);
         System.out.println("=== OCR 识别全文: " + fullText);
         
-        // 提取所有取件码
-        List<String> codes = extractAllCodes(fullText);
-        System.out.println("=== 提取到取件码: " + codes);
+        // 提取每个快递的信息（取件码 + 驿站地址）
+        List<Map<String, String>> packages = extractPackages(fullText);
+        System.out.println("=== 提取到包裹列表: " + packages);
         
-        // 提取驿站名称
-        String station = extractStation(fullText);
-        System.out.println("=== 提取驿站: " + station);
+        // 兼容旧版：提取所有取件码
+        List<String> codes = new ArrayList<>();
+        for (Map<String, String> pkg : packages) {
+            if (pkg.containsKey("code")) {
+                codes.add(pkg.get("code"));
+            }
+        }
+        
+        // 兼容旧版：提取第一个驿站
+        String station = packages.isEmpty() ? "未知驿站" : packages.get(0).getOrDefault("station", "未知驿站");
         
         Map<String, Object> result = new java.util.HashMap<>();
+        result.put("packages", packages);
         result.put("codes", codes);
         result.put("station", station);
-        // 兼容旧版，返回第一个取件码
         result.put("code", codes.isEmpty() ? null : codes.get(0));
         
         System.out.println("=== 最终结果: " + result);
         return result;
+    }
+
+    /**
+     * 提取每个快递的信息（取件码 + 驿站地址）
+     */
+    private List<Map<String, String>> extractPackages(String text) {
+        List<Map<String, String>> packages = new ArrayList<>();
+        System.out.println("=== 开始提取包裹信息 ===");
+        
+        // 按快递信息块分割（通过关键词或空行）
+        String[] blocks = text.split("(?=取件码|取货码|凭「|凭【|【近邻宝】|【驿小哥】|【兔喜生活】|【妈妈驿站】)");
+        
+        for (String block : blocks) {
+            if (block.trim().isEmpty()) {
+                continue;
+            }
+            
+            System.out.println("=== 处理信息块: " + block.trim());
+            
+            // 提取取件码
+            String code = extractCodeFromBlock(block);
+            // 提取驿站地址
+            String station = extractStationFromBlock(block);
+            
+            if (code != null && !code.isEmpty()) {
+                Map<String, String> pkg = new java.util.HashMap<>();
+                pkg.put("code", code);
+                pkg.put("station", station);
+                packages.add(pkg);
+                System.out.println("=== 提取到包裹: code=" + code + ", station=" + station);
+            }
+        }
+        
+        // 如果没有分割成功，尝试整体提取
+        if (packages.isEmpty()) {
+            List<String> allCodes = extractAllCodes(text);
+            String defaultStation = extractStation(text);
+            
+            for (String code : allCodes) {
+                Map<String, String> pkg = new java.util.HashMap<>();
+                pkg.put("code", code);
+                pkg.put("station", defaultStation);
+                packages.add(pkg);
+            }
+        }
+        
+        return packages;
+    }
+
+    /**
+     * 从单个信息块提取取件码
+     */
+    private String extractCodeFromBlock(String block) {
+        Pattern[] patterns = {
+            Pattern.compile("取件码\\s*[:：]?\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("取货码\\s*[:：]?\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("凭[「【]?\\s*([A-Z0-9\\-]+)\\s*[」】]?", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("可凭\\s*([A-Z0-9\\-]+)\\s*到店", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("\\b([A-Z0-9]+(?:-[A-Z0-9]+)+)\\b", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("\\b(\\d{6,10})\\b")
+        };
+        
+        for (Pattern p : patterns) {
+            Matcher m = p.matcher(block);
+            if (m.find()) {
+                String code = m.group(1).trim();
+                if (code.length() >= 4 && code.length() <= 20) {
+                    return code;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 从单个信息块提取驿站地址
+     */
+    private String extractStationFromBlock(String block) {
+        // 1. 优先提取「地址：」后面的内容
+        Pattern addrPattern = Pattern.compile("地址\\s*[:：]?\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
+        Matcher addrMatcher = addrPattern.matcher(block);
+        if (addrMatcher.find()) {
+            String result = addrMatcher.group(1).trim();
+            if (result.length() > 3) {
+                return result;
+            }
+        }
+        
+        // 2. 提取「取件地址：」后面的内容
+        Pattern pickupAddrPattern = Pattern.compile("取件地址\\s*[:：]?\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
+        Matcher pickupAddrMatcher = pickupAddrPattern.matcher(block);
+        if (pickupAddrMatcher.find()) {
+            String result = pickupAddrMatcher.group(1).trim();
+            if (result.length() > 3) {
+                return result;
+            }
+        }
+        
+        // 3. 匹配「到XXX柜/店/驿站/货架」
+        Pattern cabinetPattern = Pattern.compile("到\\s*([^，,。！？\\n]{3,40}(?:号柜|柜|店|驿站|货架|房后))", Pattern.CASE_INSENSITIVE);
+        Matcher cabinetMatcher = cabinetPattern.matcher(block);
+        if (cabinetMatcher.find()) {
+            String result = cabinetMatcher.group(1).trim();
+            if (result.length() > 3) {
+                return result;
+            }
+        }
+        
+        // 4. 匹配已知驿站关键词
+        String[][] stationKeywords = {
+            {"交通大学南门近邻宝院内货架", "交通大学南门近邻宝院内货架"},
+            {"交大南门外近邻宝房后", "交大南门外近邻宝房后"},
+            {"交大南门近邻宝", "交大南门近邻宝"},
+            {"近邻宝院内", "近邻宝院内"},
+            {"近邻宝", "近邻宝"},
+            {"妈妈驿站", "妈妈驿站"},
+            {"菜鸟驿站", "菜鸟驿站"},
+            {"兔喜生活", "兔喜生活"}
+        };
+        for (String[] pair : stationKeywords) {
+            if (block.contains(pair[0])) {
+                return pair[1];
+            }
+        }
+        
+        // 5. 提取发送方名称
+        Pattern senderPattern = Pattern.compile("【([^】]+)】");
+        Matcher senderMatcher = senderPattern.matcher(block);
+        if (senderMatcher.find()) {
+            return senderMatcher.group(1).trim();
+        }
+        
+        return "未知驿站";
     }
 
     /**
