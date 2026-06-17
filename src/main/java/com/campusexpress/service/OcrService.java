@@ -225,10 +225,10 @@ public class OcrService {
         }
         
         // 3. 匹配「凭XXX到XXX」格式
-        Pattern凭ToPattern = Pattern.compile("凭\\s*[A-Z0-9\\-]+\\s*到\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
-        Matcher凭ToMatcher =凭ToPattern.matcher(line);
-        if (凭ToMatcher.find()) {
-            String result = 凭ToMatcher.group(1).trim();
+        Pattern pingToPattern = Pattern.compile("凭\\s*[A-Z0-9\\-]+\\s*到\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
+        Matcher pingToMatcher = pingToPattern.matcher(line);
+        if (pingToMatcher.find()) {
+            String result = pingToMatcher.group(1).trim();
             if (result.length() > 2) {
                 return result;
             }
@@ -342,15 +342,15 @@ public class OcrService {
         }
         
         // 3. 匹配「凭XXX到XXX」格式（提取完整位置）
-        Pattern凭ToPattern = Pattern.compile("凭\\s*[A-Z0-9\\-]+\\s*到\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
-        Matcher凭ToMatcher =凭ToPattern.matcher(text);
-        String last凭To = null;
-        while (凭ToMatcher.find()) {
-            last凭To = 凭ToMatcher.group(1).trim();
+        Pattern pingToPattern = Pattern.compile("凭\\s*[A-Z0-9\\-]+\\s*到\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
+        Matcher pingToMatcher = pingToPattern.matcher(text);
+        String lastPingTo = null;
+        while (pingToMatcher.find()) {
+            lastPingTo = pingToMatcher.group(1).trim();
         }
-        if (last凭To != null && last凭To.length() > 3) {
-            System.out.println("=== 匹配到凭...到: " + last凭To);
-            return last凭To;
+        if (lastPingTo != null && lastPingTo.length() > 3) {
+            System.out.println("=== 匹配到凭...到: " + lastPingTo);
+            return lastPingTo;
         }
         
         // 4. 匹配「到XXX」提取完整位置（包括柜号、位置编号等）
