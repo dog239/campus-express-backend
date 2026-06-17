@@ -80,26 +80,56 @@ public class OcrService {
         Set<String> codes = new LinkedHashSet<>();
         System.out.println("=== 开始提取所有取件码 ===");
         
-        // 优先级高的匹配模式
-        Pattern[] patterns = {
-            // 取件码：M-4-6993
-            Pattern.compile("取件码\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE),
-            // 凭「87491264」到
+        // 模式1：取件码关键词后的内容（支持多种格式）
+        Pattern[] keywordPatterns = {
+            Pattern.compile("取件码\\s*[:：]?\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("取货码\\s*[:：]?\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE),
             Pattern.compile("凭[「【]?\\s*([A-Z0-9\\-]+)\\s*[」】]?", Pattern.CASE_INSENSITIVE),
-            // 取货码：7-1-1914
-            Pattern.compile("取货码\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE),
-            // 备选：4-8位数字或字母数字组合
-            Pattern.compile("\\b([A-Z]?[0-9\\-]{4,12})\\b")
+            Pattern.compile("可凭\\s*([A-Z0-9\\-]+)\\s*到店", Pattern.CASE_INSENSITIVE)
         };
         
-        for (Pattern p : patterns) {
+        for (Pattern p : keywordPatterns) {
             Matcher m = p.matcher(text);
             while (m.find()) {
                 String code = m.group(1).trim();
-                // 过滤掉太短的（如单个数字）
-                if (code.length() >= 4) {
+                if (code.length() >= 4 && code.length() <= 20) {
                     codes.add(code);
-                    System.out.println("=== 匹配到取件码: " + code);
+                    System.out.println("=== 关键词匹配到取件码: " + code);
+                }
+            }
+        }
+        
+        // 模式2：连字符格式（M-4-6993、7-1-1914）
+        Pattern hyphenPattern = Pattern.compile("\\b([A-Z0-9]+(?:-[A-Z0-9]+)+)\\b", Pattern.CASE_INSENSITIVE);
+        Matcher hyphenMatcher = hyphenPattern.matcher(text);
+        while (hyphenMatcher.find()) {
+            String code = hyphenMatcher.group(1).trim();
+            if (code.length() >= 4 && code.length() <= 20 && !codes.contains(code)) {
+                codes.add(code);
+                System.out.println("=== 连字符格式匹配到取件码: " + code);
+            }
+        }
+        
+        // 模式3：纯数字格式（87491264、25701148）
+        Pattern numPattern = Pattern.compile("\\b(\\d{6,10})\\b");
+        Matcher numMatcher = numPattern.matcher(text);
+        while (numMatcher.find()) {
+            String code = numMatcher.group(1).trim();
+            if (!codes.contains(code)) {
+                codes.add(code);
+                System.out.println("=== 纯数字格式匹配到取件码: " + code);
+            }
+        }
+        
+        // 模式4：备选（4-8位数字或字母数字组合）
+        if (codes.isEmpty()) {
+            Pattern fallbackPattern = Pattern.compile("\\b([A-Z]?[0-9\\-]{4,12})\\b");
+            Matcher fallbackMatcher = fallbackPattern.matcher(text);
+            while (fallbackMatcher.find()) {
+                String code = fallbackMatcher.group(1).trim();
+                if (code.length() >= 4 && !codes.contains(code)) {
+                    codes.add(code);
+                    System.out.println("=== 备选匹配到取件码: " + code);
                 }
             }
         }
@@ -113,8 +143,8 @@ public class OcrService {
     private String extractStation(String text) {
         System.out.println("=== 开始提取驿站 ===");
         
-        // 1. 优先提取「地址：」后面的完整地址（取到逗号或句号前）
-        Pattern addrPattern = Pattern.compile("(?:取件地址|地址)[:：]?\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
+        // 1. 优先提取「地址：」后面的完整地址（优先级最高）
+        Pattern addrPattern = Pattern.compile("地址\\s*[:：]?\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
         Matcher addrMatcher = addrPattern.matcher(text);
         if (addrMatcher.find()) {
             String result = addrMatcher.group(1).trim();
@@ -124,7 +154,18 @@ public class OcrService {
             }
         }
         
-        // 2. 匹配「到XXX柜」或「到XXX号柜」
+        // 2. 提取「取件地址：」后面的内容
+        Pattern pickupAddrPattern = Pattern.compile("取件地址\\s*[:：]?\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
+        Matcher pickupAddrMatcher = pickupAddrPattern.matcher(text);
+        if (pickupAddrMatcher.find()) {
+            String result = pickupAddrMatcher.group(1).trim();
+            if (result.length() > 3) {
+                System.out.println("=== 匹配到取件地址: " + result);
+                return result;
+            }
+        }
+        
+        // 3. 匹配「到XXX柜」或「到XXX号柜」
         Pattern cabinetPattern = Pattern.compile("到\\s*([^，,。！？\\n]{3,40}(?:号柜|柜|店|驿站|货架))", Pattern.CASE_INSENSITIVE);
         Matcher cabinetMatcher = cabinetPattern.matcher(text);
         if (cabinetMatcher.find()) {
@@ -135,7 +176,7 @@ public class OcrService {
             }
         }
         
-        // 3. 匹配「到XXX」或「已到XXX」
+        // 4. 匹配「到XXX」或「已到XXX」
         Pattern arrivePattern = Pattern.compile("(?:到|已到|到达|已送达)\\s*([^，,。！？\\n]{3,30})", Pattern.CASE_INSENSITIVE);
         Matcher arriveMatcher = arrivePattern.matcher(text);
         if (arriveMatcher.find()) {
@@ -146,26 +187,32 @@ public class OcrService {
             }
         }
         
-        // 4. 匹配已知驿站关键词（按优先级排序）
+        // 5. 匹配已知驿站关键词（按优先级排序，优先匹配更完整的）
         String[][] stationKeywords = {
-            {"交通大学南门近邻宝院内货架", "近邻宝院内"},
-            {"交通大学南门近邻宝", "近邻宝"},
+            {"交通大学南门近邻宝院内货架", "交通大学南门近邻宝院内货架"},
+            {"交通大学南门近邻宝", "交通大学南门近邻宝"},
+            {"近邻宝院内", "近邻宝院内"},
+            {"近邻宝", "近邻宝"},
             {"妈妈驿站", "妈妈驿站"},
             {"菜鸟驿站", "菜鸟驿站"},
             {"兔喜生活", "兔喜生活"},
-            {"顺丰", "顺丰"},
+            {"顺丰驿站", "顺丰驿站"},
+            {"顺丰代签收", "顺丰代签收"},
+            {"丰巢快递柜", "丰巢快递柜"},
             {"丰巢", "丰巢"},
-            {"京东", "京东"},
+            {"京东驿站", "京东驿站"},
+            {"京东服务站", "京东服务站"},
+            {"比比吃旁菜鸟驿站", "比比吃旁菜鸟驿站"},
             {"比比吃", "比比吃"}
         };
         for (String[] pair : stationKeywords) {
-            if (text.contains(pair[0]) || text.contains(pair[1])) {
-                System.out.println("=== 匹配到已知驿站: " + pair[0]);
-                return pair[0];
+            if (text.contains(pair[0])) {
+                System.out.println("=== 匹配到已知驿站: " + pair[1]);
+                return pair[1];
             }
         }
         
-        // 5. 提取发送方名称
+        // 6. 提取发送方名称
         Pattern senderPattern = Pattern.compile("【([^】]+)】");
         Matcher senderMatcher = senderPattern.matcher(text);
         if (senderMatcher.find()) {
