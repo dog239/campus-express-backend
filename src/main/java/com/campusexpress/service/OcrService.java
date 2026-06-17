@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
 public class OcrService {
 
     private static final Pattern CODE_PATTERN = Pattern.compile(
-            "\\b(?:[A-Z]?\\d{2,6}|\\d{4,8}|[A-Z]\\d{4,8}|\\d+-\\d+-?\\d*|\\d{4,8}-[A-Z]?\\d{2,4})\\b",
+            "\\b(?:\\d{1,2}-\\d{1,2}-\\d{3,5}|\\d{1,2}-\\d{3,5}|[A-Z]?\\d{4,8}|[A-Z]\\d{4,8})\\b",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -80,13 +80,24 @@ public class OcrService {
     }
 
     private String extractStation(List<String> lines) {
-        String fullText = String.join("", lines);
+        String fullText = String.join("\n", lines);
         
-        // 1. 匹配「到XXX」或「已到XXX」
-        Matcher arriveMatch = Pattern.compile("(?:到|已到|到达|已送达)\\s*([^，,。！？]+)").matcher(fullText);
+        // 1. 优先匹配「取件地址：」或「地址：」后的内容
+        Pattern addrPattern = Pattern.compile("(?:取件地址|地址)\\s*[:：]?\\s*(.+?)(?:\n|$)");
+        Matcher addrMatcher = addrPattern.matcher(fullText);
+        if (addrMatcher.find()) {
+            String address = addrMatcher.group(1).trim();
+            // 清理末尾的无关字符
+            address = address.replaceAll("[，,。！？\\s]+$", "");
+            if (address.length() >= 5 && address.length() <= 100) {
+                return address;
+            }
+        }
+        
+        // 2. 匹配「到XXX」或「已到XXX」
+        Matcher arriveMatch = Pattern.compile("(?:到|已到|到达|已送达)\\s*([^，,。！？\n]+)").matcher(fullText);
         if (arriveMatch.find()) {
             String result = arriveMatch.group(1).trim();
-            // 检查是否包含驿站关键词
             String[] stationKeywords = {"京东服务站", "妈妈驿站", "近邻宝", "菜鸟驿站", "顺丰驿站", "丰巢", "驿小哥", "京东驿站"};
             for (String kw : stationKeywords) {
                 if (result.contains(kw)) {
@@ -94,15 +105,26 @@ public class OcrService {
                     return result.substring(0, idx);
                 }
             }
-            if (result.length() > 2 && result.length() <= 30) {
+            if (result.length() > 2 && result.length() <= 50) {
                 return result;
             }
         }
         
-        // 2. 匹配关键词
+        // 3. 匹配驿站关键词并提取完整名称
         String[] keywords = {"妈妈驿站", "近邻宝院内", "近邻宝", "菜鸟驿站", "京东服务站", "顺丰驿站", "丰巢快递柜", "丰巢", "驿小哥", "京东驿站"};
         for (String kw : keywords) {
-            if (fullText.contains(kw)) {
+            int idx = fullText.indexOf(kw);
+            if (idx >= 0) {
+                // 尝试向前提取地址（最多20个字符）
+                int start = Math.max(0, idx - 20);
+                String before = fullText.substring(start, idx);
+                // 找到地址起始点（取件地址、地址、到、已到等关键词）
+                Pattern startPattern = Pattern.compile("(?:取件地址|地址|到|已到)[:：]?\\s*$");
+                Matcher startMatcher = startPattern.matcher(before);
+                if (startMatcher.find()) {
+                    return fullText.substring(start + startMatcher.start(), idx + kw.length()).trim();
+                }
+                // 如果没有找到起始关键词，返回关键词本身
                 return kw;
             }
         }
@@ -218,30 +240,55 @@ public class OcrService {
 
     private Set<String> parseCodes(List<String> lines) {
         Set<String> result = new LinkedHashSet<>();
-        for (String line : lines) {
-            // 先尝试匹配取件码关键词
-            String[] keywords = {"取件码", "取货码", "凭", "尾号", "验证码"};
-            for (String kw : keywords) {
-                Pattern p = Pattern.compile(kw + "\\s*[:：]?\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE);
-                Matcher m = p.matcher(line);
-                if (m.find()) {
-                    String code = m.group(1);
-                    if (code.length() >= 2 && code.length() <= 20) {
-                        result.add(code);
-                    }
-                    break;
+        String fullText = String.join("\n", lines);
+        
+        // 优先匹配关键词后的取件码
+        String[] keywords = {"取货码", "取件码", "凭", "尾号", "验证码", "取件码：", "取货码："};
+        for (String kw : keywords) {
+            Pattern p = Pattern.compile(kw + "\\s*[:：]?\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE);
+            Matcher m = p.matcher(fullText);
+            while (m.find()) {
+                String code = m.group(1).trim();
+                if (isValidCode(code)) {
+                    result.add(code);
                 }
             }
-            // 再用通用正则匹配
+        }
+        
+        // 如果已找到取件码，直接返回
+        if (!result.isEmpty()) {
+            return result;
+        }
+        
+        // 否则用通用正则匹配（排除时间格式）
+        for (String line : lines) {
+            // 跳过包含时间格式的行
+            if (line.matches(".*\\d{1,2}:\\d{2}.*") || line.contains("取件时间") || line.contains("营业时间")) {
+                continue;
+            }
             Matcher matcher = CODE_PATTERN.matcher(line);
             while (matcher.find()) {
                 String code = matcher.group();
-                // 过滤掉太短或太长的
-                if (code.length() >= 2 && code.length() <= 20) {
+                if (isValidCode(code)) {
                     result.add(code);
                 }
             }
         }
         return result;
+    }
+    
+    private boolean isValidCode(String code) {
+        if (code == null || code.length() < 3 || code.length() > 20) {
+            return false;
+        }
+        // 排除纯数字且长度小于4的（可能是时间、日期的一部分）
+        if (code.matches("\\d+") && code.length() < 4) {
+            return false;
+        }
+        // 排除时间格式
+        if (code.matches("\\d{1,2}:\\d{2}.*")) {
+            return false;
+        }
+        return true;
     }
 }
