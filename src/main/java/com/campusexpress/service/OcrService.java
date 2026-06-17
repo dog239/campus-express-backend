@@ -87,14 +87,18 @@ public class OcrService {
         List<Map<String, String>> packages = new ArrayList<>();
         System.out.println("=== 开始提取包裹信息 ===");
         
-        // 1. 找出所有取件码及其位置
-        List<int[]> codePositions = findAllCodePositions(text);
+        // 合并所有行（移除换行符），便于跨行匹配
+        String mergedText = text.replaceAll("\n", "");
+        System.out.println("=== 合并后文本: " + mergedText);
+        
+        // 1. 找出所有取件码及其位置（在合并后的文本中）
+        List<int[]> codePositions = findAllCodePositions(mergedText);
         System.out.println("=== 找到 " + codePositions.size() + " 个取件码");
         
         if (codePositions.isEmpty()) {
             // 备选方法
-            List<String> allCodes = extractAllCodes(text);
-            String defaultStation = extractStation(text);
+            List<String> allCodes = extractAllCodes(mergedText);
+            String defaultStation = extractStation(mergedText);
             for (String code : allCodes) {
                 Map<String, String> pkg = new java.util.HashMap<>();
                 pkg.put("code", code);
@@ -108,16 +112,16 @@ public class OcrService {
         for (int i = 0; i < codePositions.size(); i++) {
             int codeStart = codePositions.get(i)[0];
             int codeEnd = codePositions.get(i)[1];
-            String code = text.substring(codeStart, codeEnd);
+            String code = mergedText.substring(codeStart, codeEnd);
             
             // 提取该取件码后面的文本（直到下一个取件码或末尾）
-            int nextCodeStart = (i + 1 < codePositions.size()) ? codePositions.get(i + 1)[0] : text.length();
-            String context = text.substring(codeEnd, nextCodeStart);
+            int nextCodeStart = (i + 1 < codePositions.size()) ? codePositions.get(i + 1)[0] : mergedText.length();
+            String context = mergedText.substring(codeEnd, Math.min(nextCodeStart, codeEnd + 200)); // 限制上下文长度
             
             System.out.println("=== 取件码: " + code + ", 上下文: " + context);
             
             // 3. 从上下文中提取地址
-            String station = extractStationFromContext(context, text, codeEnd);
+            String station = extractStationFromContext(context);
             
             Map<String, String> pkg = new java.util.HashMap<>();
             pkg.put("code", code);
@@ -169,11 +173,11 @@ public class OcrService {
     }
 
     /**
-     * 从上下文中提取地址
+     * 从上下文中提取地址（上下文已移除换行符）
      */
-    private String extractStationFromContext(String context, String fullText, int codeEnd) {
+    private String extractStationFromContext(String context) {
         // 1. 优先匹配「地址：」后面的内容（取最长匹配）
-        Pattern addrPattern = Pattern.compile("地址\\s*[:：]?\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
+        Pattern addrPattern = Pattern.compile("地址\\s*[:：]?\\s*([^，,。！？]{3,50})", Pattern.CASE_INSENSITIVE);
         Matcher addrMatcher = addrPattern.matcher(context);
         String longestAddr = null;
         while (addrMatcher.find()) {
@@ -186,8 +190,8 @@ public class OcrService {
             return longestAddr;
         }
         
-        // 2. 匹配「到XXX」格式（取最长匹配）
-        Pattern toPattern = Pattern.compile("到\\s*([^，,。！？\\n]{2,50})", Pattern.CASE_INSENSITIVE);
+        // 2. 匹配「到XXX」格式（取最长匹配，允许跨行）
+        Pattern toPattern = Pattern.compile("到\\s*([^，,。！？]{2,50})", Pattern.CASE_INSENSITIVE);
         Matcher toMatcher = toPattern.matcher(context);
         String longestTo = null;
         while (toMatcher.find()) {
@@ -197,23 +201,6 @@ public class OcrService {
             }
         }
         if (longestTo != null) {
-            // 检查是否被截断
-            if (isTruncatedStation(longestTo)) {
-                // 尝试从全文中合并下一行
-                int toPos = context.indexOf("到");
-                if (toPos > 0) {
-                    int nextLineStart = fullText.indexOf('\n', codeEnd + toPos + longestTo.length());
-                    if (nextLineStart > 0) {
-                        int nextLineEnd = fullText.indexOf('\n', nextLineStart + 1);
-                        if (nextLineEnd < 0) nextLineEnd = fullText.length();
-                        String nextLine = fullText.substring(nextLineStart + 1, nextLineEnd).trim();
-                        String merged = mergeStationLines(longestTo, nextLine);
-                        if (merged != null) {
-                            return merged;
-                        }
-                    }
-                }
-            }
             return longestTo;
         }
         
