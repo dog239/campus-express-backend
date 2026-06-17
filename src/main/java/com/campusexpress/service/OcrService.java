@@ -120,6 +120,20 @@ public class OcrService {
                 // 从当前行提取地址
                 currentStation = extractStationFromLine(line);
                 
+                // 检查地址是否被截断（以"近"、"外"、"门"等结尾）
+                if (currentStation != null && isTruncatedStation(currentStation)) {
+                    System.out.println("=== 地址可能被截断: " + currentStation);
+                    // 尝试合并下一行
+                    if (i + 1 < lines.length) {
+                        String nextLine = lines[i + 1].trim();
+                        String merged = mergeStationLines(currentStation, nextLine);
+                        if (merged != null) {
+                            currentStation = merged;
+                            System.out.println("=== 合并后地址: " + currentStation);
+                        }
+                    }
+                }
+                
                 // 如果当前行没有地址，向后查找
                 if (currentStation == null || currentStation.equals("未知驿站")) {
                     for (int j = i + 1; j < lines.length && j < i + 5; j++) {
@@ -170,6 +184,43 @@ public class OcrService {
         }
         
         return packages;
+    }
+
+    /**
+     * 检查地址是否被截断
+     */
+    private boolean isTruncatedStation(String station) {
+        if (station == null || station.length() < 3) {
+            return false;
+        }
+        // 以这些词结尾可能是被截断的
+        String lastChar = station.substring(station.length() - 1);
+        return lastChar.equals("近") || lastChar.equals("外") || lastChar.equals("门") ||
+               lastChar.equals("南") || lastChar.equals("北") || lastChar.equals("东") || lastChar.equals("西");
+    }
+
+    /**
+     * 合并被截断的地址行
+     */
+    private String mergeStationLines(String currentStation, String nextLine) {
+        if (nextLine == null || nextLine.isEmpty()) {
+            return null;
+        }
+        
+        // 提取下一行的位置信息（取到逗号前）
+        Pattern posPattern = Pattern.compile("^([^，,。！？\\n]{1,30})");
+        Matcher posMatcher = posPattern.matcher(nextLine);
+        if (posMatcher.find()) {
+            String nextPart = posMatcher.group(1).trim();
+            // 检查是否是位置信息（包含关键词或位置编号）
+            if (nextPart.contains("邻宝") || nextPart.contains("房后") || nextPart.contains("柜") ||
+                nextPart.contains("店") || nextPart.contains("驿站") || nextPart.contains("货架") ||
+                nextPart.matches(".*\\d+号.*") || nextPart.matches(".*[A-Z]\\d+.*")) {
+                return currentStation + nextPart;
+            }
+        }
+        
+        return null;
     }
 
     /**
