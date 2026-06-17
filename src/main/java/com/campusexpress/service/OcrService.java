@@ -87,32 +87,77 @@ public class OcrService {
         List<Map<String, String>> packages = new ArrayList<>();
         System.out.println("=== 开始提取包裹信息 ===");
         
-        // 按快递信息块分割（通过关键词或空行）
-        String[] blocks = text.split("(?=取件码|取货码|凭「|凭【|【近邻宝】|【驿小哥】|【兔喜生活】|【妈妈驿站】)");
+        // 按行分割文本
+        String[] lines = text.split("\n");
         
-        for (String block : blocks) {
-            if (block.trim().isEmpty()) {
+        // 临时存储当前包裹信息
+        String currentCode = null;
+        String currentStation = null;
+        
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            if (line.isEmpty()) {
                 continue;
             }
             
-            System.out.println("=== 处理信息块: " + block.trim());
+            System.out.println("=== 处理行: " + line);
             
-            // 提取取件码
-            String code = extractCodeFromBlock(block);
-            // 提取驿站地址
-            String station = extractStationFromBlock(block);
-            
-            if (code != null && !code.isEmpty()) {
-                Map<String, String> pkg = new java.util.HashMap<>();
-                pkg.put("code", code);
-                pkg.put("station", station);
-                packages.add(pkg);
-                System.out.println("=== 提取到包裹: code=" + code + ", station=" + station);
+            // 检查是否是取件码行
+            String code = extractCodeFromLine(line);
+            if (code != null) {
+                // 如果已有取件码，先保存
+                if (currentCode != null) {
+                    Map<String, String> pkg = new java.util.HashMap<>();
+                    pkg.put("code", currentCode);
+                    pkg.put("station", currentStation != null ? currentStation : "未知驿站");
+                    packages.add(pkg);
+                    System.out.println("=== 保存包裹: code=" + currentCode + ", station=" + currentStation);
+                }
+                
+                currentCode = code;
+                currentStation = null;
+                
+                // 从当前行提取地址
+                currentStation = extractStationFromLine(line);
+                
+                // 如果当前行没有地址，向后查找
+                if (currentStation == null || currentStation.equals("未知驿站")) {
+                    for (int j = i + 1; j < lines.length && j < i + 5; j++) {
+                        String nextLine = lines[j].trim();
+                        String station = extractStationFromLine(nextLine);
+                        if (station != null && !station.equals("未知驿站")) {
+                            currentStation = station;
+                            break;
+                        }
+                        // 如果遇到下一个取件码，停止查找
+                        if (extractCodeFromLine(nextLine) != null) {
+                            break;
+                        }
+                    }
+                }
+            } else {
+                // 不是取件码行，检查是否是地址行
+                String station = extractStationFromLine(line);
+                if (station != null && !station.equals("未知驿站")) {
+                    if (currentCode != null && currentStation == null) {
+                        currentStation = station;
+                    }
+                }
             }
         }
         
-        // 如果没有分割成功，尝试整体提取
+        // 保存最后一个包裹
+        if (currentCode != null) {
+            Map<String, String> pkg = new java.util.HashMap<>();
+            pkg.put("code", currentCode);
+            pkg.put("station", currentStation != null ? currentStation : "未知驿站");
+            packages.add(pkg);
+            System.out.println("=== 保存最后一个包裹: code=" + currentCode + ", station=" + currentStation);
+        }
+        
+        // 如果没有提取到，使用备选方法
         if (packages.isEmpty()) {
+            System.out.println("=== 使用备选方法提取 ===");
             List<String> allCodes = extractAllCodes(text);
             String defaultStation = extractStation(text);
             
@@ -128,9 +173,9 @@ public class OcrService {
     }
 
     /**
-     * 从单个信息块提取取件码
+     * 从单行提取取件码
      */
-    private String extractCodeFromBlock(String block) {
+    private String extractCodeFromLine(String line) {
         Pattern[] patterns = {
             Pattern.compile("取件码\\s*[:：]?\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE),
             Pattern.compile("取货码\\s*[:：]?\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE),
@@ -141,7 +186,7 @@ public class OcrService {
         };
         
         for (Pattern p : patterns) {
-            Matcher m = p.matcher(block);
+            Matcher m = p.matcher(line);
             if (m.find()) {
                 String code = m.group(1).trim();
                 if (code.length() >= 4 && code.length() <= 20) {
@@ -153,12 +198,12 @@ public class OcrService {
     }
 
     /**
-     * 从单个信息块提取驿站地址
+     * 从单行提取驿站地址
      */
-    private String extractStationFromBlock(String block) {
-        // 1. 优先提取「地址：」后面的内容
+    private String extractStationFromLine(String line) {
+        // 1. 优先匹配「地址：」后面的内容
         Pattern addrPattern = Pattern.compile("地址\\s*[:：]?\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
-        Matcher addrMatcher = addrPattern.matcher(block);
+        Matcher addrMatcher = addrPattern.matcher(line);
         if (addrMatcher.find()) {
             String result = addrMatcher.group(1).trim();
             if (result.length() > 3) {
@@ -166,27 +211,19 @@ public class OcrService {
             }
         }
         
-        // 2. 提取「取件地址：」后面的内容
-        Pattern pickupAddrPattern = Pattern.compile("取件地址\\s*[:：]?\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
-        Matcher pickupAddrMatcher = pickupAddrPattern.matcher(block);
-        if (pickupAddrMatcher.find()) {
-            String result = pickupAddrMatcher.group(1).trim();
-            if (result.length() > 3) {
+        // 2. 匹配「到XXX柜/店/驿站/货架/房后」
+        Pattern toPattern = Pattern.compile("到\\s*([^，,。！？\\n]{2,40})", Pattern.CASE_INSENSITIVE);
+        Matcher toMatcher = toPattern.matcher(line);
+        if (toMatcher.find()) {
+            String result = toMatcher.group(1).trim();
+            if (result.length() > 2 && 
+                (result.contains("柜") || result.contains("店") || result.contains("驿站") || 
+                 result.contains("货架") || result.contains("房后") || result.contains("近邻宝"))) {
                 return result;
             }
         }
         
-        // 3. 匹配「到XXX柜/店/驿站/货架」
-        Pattern cabinetPattern = Pattern.compile("到\\s*([^，,。！？\\n]{3,40}(?:号柜|柜|店|驿站|货架|房后))", Pattern.CASE_INSENSITIVE);
-        Matcher cabinetMatcher = cabinetPattern.matcher(block);
-        if (cabinetMatcher.find()) {
-            String result = cabinetMatcher.group(1).trim();
-            if (result.length() > 3) {
-                return result;
-            }
-        }
-        
-        // 4. 匹配已知驿站关键词
+        // 3. 匹配已知驿站关键词
         String[][] stationKeywords = {
             {"交通大学南门近邻宝院内货架", "交通大学南门近邻宝院内货架"},
             {"交大南门外近邻宝房后", "交大南门外近邻宝房后"},
@@ -198,19 +235,12 @@ public class OcrService {
             {"兔喜生活", "兔喜生活"}
         };
         for (String[] pair : stationKeywords) {
-            if (block.contains(pair[0])) {
+            if (line.contains(pair[0])) {
                 return pair[1];
             }
         }
         
-        // 5. 提取发送方名称
-        Pattern senderPattern = Pattern.compile("【([^】]+)】");
-        Matcher senderMatcher = senderPattern.matcher(block);
-        if (senderMatcher.find()) {
-            return senderMatcher.group(1).trim();
-        }
-        
-        return "未知驿站";
+        return null;
     }
 
     /**
@@ -283,15 +313,16 @@ public class OcrService {
     private String extractStation(String text) {
         System.out.println("=== 开始提取驿站 ===");
         
-        // 1. 优先提取「地址：」后面的完整地址（优先级最高）
+        // 1. 优先提取「地址：」后面的完整地址（匹配最后一个，通常更完整）
         Pattern addrPattern = Pattern.compile("地址\\s*[:：]?\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
         Matcher addrMatcher = addrPattern.matcher(text);
-        if (addrMatcher.find()) {
-            String result = addrMatcher.group(1).trim();
-            if (result.length() > 3) {
-                System.out.println("=== 匹配到地址: " + result);
-                return result;
-            }
+        String lastAddr = null;
+        while (addrMatcher.find()) {
+            lastAddr = addrMatcher.group(1).trim();
+        }
+        if (lastAddr != null && lastAddr.length() > 3) {
+            System.out.println("=== 匹配到地址: " + lastAddr);
+            return lastAddr;
         }
         
         // 2. 提取「取件地址：」后面的内容
@@ -306,14 +337,19 @@ public class OcrService {
         }
         
         // 3. 匹配「到XXX柜」或「到XXX号柜」
-        Pattern cabinetPattern = Pattern.compile("到\\s*([^，,。！？\\n]{3,40}(?:号柜|柜|店|驿站|货架))", Pattern.CASE_INSENSITIVE);
+        Pattern cabinetPattern = Pattern.compile("到\\s*([^，,。！？\\n]{3,40})", Pattern.CASE_INSENSITIVE);
         Matcher cabinetMatcher = cabinetPattern.matcher(text);
-        if (cabinetMatcher.find()) {
+        String lastCabinet = null;
+        while (cabinetMatcher.find()) {
             String result = cabinetMatcher.group(1).trim();
-            if (result.length() > 3) {
-                System.out.println("=== 匹配到柜号: " + result);
-                return result;
+            if (result.contains("柜") || result.contains("店") || result.contains("驿站") || 
+                result.contains("货架") || result.contains("房后") || result.contains("近邻宝")) {
+                lastCabinet = result;
             }
+        }
+        if (lastCabinet != null && lastCabinet.length() > 3) {
+            System.out.println("=== 匹配到柜号: " + lastCabinet);
+            return lastCabinet;
         }
         
         // 4. 匹配「到XXX」或「已到XXX」
