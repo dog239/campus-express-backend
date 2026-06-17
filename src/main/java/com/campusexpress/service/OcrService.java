@@ -87,103 +87,137 @@ public class OcrService {
         List<Map<String, String>> packages = new ArrayList<>();
         System.out.println("=== 开始提取包裹信息 ===");
         
-        // 按行分割文本
-        String[] lines = text.split("\n");
+        // 1. 找出所有取件码及其位置
+        List<int[]> codePositions = findAllCodePositions(text);
+        System.out.println("=== 找到 " + codePositions.size() + " 个取件码");
         
-        // 临时存储当前包裹信息
-        String currentCode = null;
-        String currentStation = null;
-        
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i].trim();
-            if (line.isEmpty()) {
-                continue;
-            }
-            
-            System.out.println("=== 处理行: " + line);
-            
-            // 检查是否是取件码行
-            String code = extractCodeFromLine(line);
-            if (code != null) {
-                // 如果已有取件码，先保存
-                if (currentCode != null) {
-                    Map<String, String> pkg = new java.util.HashMap<>();
-                    pkg.put("code", currentCode);
-                    pkg.put("station", currentStation != null ? currentStation : "未知驿站");
-                    packages.add(pkg);
-                    System.out.println("=== 保存包裹: code=" + currentCode + ", station=" + currentStation);
-                }
-                
-                currentCode = code;
-                currentStation = null;
-                
-                // 从当前行提取地址
-                currentStation = extractStationFromLine(line);
-                
-                // 检查地址是否被截断（以"近"、"外"、"门"等结尾）
-                if (currentStation != null && isTruncatedStation(currentStation)) {
-                    System.out.println("=== 地址可能被截断: " + currentStation);
-                    // 尝试合并下一行
-                    if (i + 1 < lines.length) {
-                        String nextLine = lines[i + 1].trim();
-                        String merged = mergeStationLines(currentStation, nextLine);
-                        if (merged != null) {
-                            currentStation = merged;
-                            System.out.println("=== 合并后地址: " + currentStation);
-                        }
-                    }
-                }
-                
-                // 如果当前行没有地址，向后查找
-                if (currentStation == null || currentStation.equals("未知驿站")) {
-                    for (int j = i + 1; j < lines.length && j < i + 5; j++) {
-                        String nextLine = lines[j].trim();
-                        String station = extractStationFromLine(nextLine);
-                        if (station != null && !station.equals("未知驿站")) {
-                            currentStation = station;
-                            break;
-                        }
-                        // 如果遇到下一个取件码，停止查找
-                        if (extractCodeFromLine(nextLine) != null) {
-                            break;
-                        }
-                    }
-                }
-            } else {
-                // 不是取件码行，检查是否是地址行
-                String station = extractStationFromLine(line);
-                if (station != null && !station.equals("未知驿站")) {
-                    if (currentCode != null && currentStation == null) {
-                        currentStation = station;
-                    }
-                }
-            }
-        }
-        
-        // 保存最后一个包裹
-        if (currentCode != null) {
-            Map<String, String> pkg = new java.util.HashMap<>();
-            pkg.put("code", currentCode);
-            pkg.put("station", currentStation != null ? currentStation : "未知驿站");
-            packages.add(pkg);
-            System.out.println("=== 保存最后一个包裹: code=" + currentCode + ", station=" + currentStation);
-        }
-        
-        // 如果没有提取到，使用备选方法
-        if (packages.isEmpty()) {
-            System.out.println("=== 使用备选方法提取 ===");
+        if (codePositions.isEmpty()) {
+            // 备选方法
             List<String> allCodes = extractAllCodes(text);
             String defaultStation = extractStation(text);
-            
             for (String code : allCodes) {
                 Map<String, String> pkg = new java.util.HashMap<>();
                 pkg.put("code", code);
                 pkg.put("station", defaultStation);
                 packages.add(pkg);
             }
+            return packages;
+        }
+        
+        // 2. 对每个取件码，提取它后面的文本
+        for (int i = 0; i < codePositions.size(); i++) {
+            int codeStart = codePositions.get(i)[0];
+            int codeEnd = codePositions.get(i)[1];
+            String code = text.substring(codeStart, codeEnd);
+            
+            // 提取该取件码后面的文本（直到下一个取件码或末尾）
+            int nextCodeStart = (i + 1 < codePositions.size()) ? codePositions.get(i + 1)[0] : text.length();
+            String context = text.substring(codeEnd, nextCodeStart);
+            
+            System.out.println("=== 取件码: " + code + ", 上下文: " + context);
+            
+            // 3. 从上下文中提取地址
+            String station = extractStationFromContext(context, text, codeEnd);
+            
+            Map<String, String> pkg = new java.util.HashMap<>();
+            pkg.put("code", code);
+            pkg.put("station", station != null ? station : "未知驿站");
+            packages.add(pkg);
+            System.out.println("=== 提取包裹: code=" + code + ", station=" + station);
         }
         
         return packages;
+    }
+
+    /**
+     * 找出所有取件码及其位置 [start, end]
+     */
+    private List<int[]> findAllCodePositions(String text) {
+        List<int[]> positions = new ArrayList<>();
+        
+        Pattern[] patterns = {
+            Pattern.compile("取件码\\s*[:：]?\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("取货码\\s*[:：]?\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("凭[「【]?\\s*([A-Z0-9\\-]+)\\s*[」】]?", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("可凭\\s*([A-Z0-9\\-]+)\\s*到店", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("\\b([A-Z0-9]+(?:-[A-Z0-9]+)+)\\b", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("\\b(\\d{6,10})\\b")
+        };
+        
+        Set<Integer> usedPositions = new java.util.HashSet<>();
+        
+        for (Pattern p : patterns) {
+            Matcher m = p.matcher(text);
+            while (m.find()) {
+                int start = m.start(1);
+                int end = m.end(1);
+                // 避免重复匹配同一位置
+                if (!usedPositions.contains(start)) {
+                    String code = m.group(1).trim();
+                    if (code.length() >= 4 && code.length() <= 20) {
+                        positions.add(new int[]{start, end});
+                        usedPositions.add(start);
+                    }
+                }
+            }
+        }
+        
+        // 按位置排序
+        positions.sort((a, b) -> a[0] - b[0]);
+        
+        return positions;
+    }
+
+    /**
+     * 从上下文中提取地址
+     */
+    private String extractStationFromContext(String context, String fullText, int codeEnd) {
+        // 1. 优先匹配「地址：」后面的内容
+        Pattern addrPattern = Pattern.compile("地址\\s*[:：]?\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
+        Matcher addrMatcher = addrPattern.matcher(context);
+        if (addrMatcher.find()) {
+            String result = addrMatcher.group(1).trim();
+            if (result.length() > 3) {
+                return result;
+            }
+        }
+        
+        // 2. 匹配「凭XXX到XXX」格式
+        Pattern pingToPattern = Pattern.compile("到\\s*([^，,。！？\\n]{2,50})", Pattern.CASE_INSENSITIVE);
+        Matcher pingToMatcher = pingToPattern.matcher(context);
+        if (pingToMatcher.find()) {
+            String result = pingToMatcher.group(1).trim();
+            if (result.length() > 2) {
+                // 检查是否被截断
+                if (isTruncatedStation(result)) {
+                    // 尝试从全文中合并下一行
+                    int nextLineStart = fullText.indexOf('\n', codeEnd + context.indexOf("到") + result.length());
+                    if (nextLineStart > 0) {
+                        int nextLineEnd = fullText.indexOf('\n', nextLineStart + 1);
+                        if (nextLineEnd < 0) nextLineEnd = fullText.length();
+                        String nextLine = fullText.substring(nextLineStart + 1, nextLineEnd).trim();
+                        String merged = mergeStationLines(result, nextLine);
+                        if (merged != null) {
+                            return merged;
+                        }
+                    }
+                }
+                return result;
+            }
+        }
+        
+        // 3. 匹配已知驿站关键词
+        Pattern keywordPattern = Pattern.compile(
+            "(交大南门\\d+号柜[A-Z0-9]+|交大南门外近邻宝房后\\d+号[A-Z0-9]+|交通大学南门近邻宝院内货架|" +
+            "交大南门近邻宝|近邻宝院内|近邻宝|妈妈驿站|菜鸟驿站|兔喜生活)",
+            Pattern.CASE_INSENSITIVE
+        );
+        Matcher keywordMatcher = keywordPattern.matcher(context);
+        if (keywordMatcher.find()) {
+            return keywordMatcher.group(1).trim();
+        }
+        
+        return null;
     }
 
     /**
