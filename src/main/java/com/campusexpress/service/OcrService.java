@@ -114,9 +114,22 @@ public class OcrService {
             int codeEnd = codePositions.get(i)[1];
             String code = mergedText.substring(codeStart, codeEnd);
             
-            // 提取该取件码后面的文本（直到下一个取件码或末尾）
-            int nextCodeStart = (i + 1 < codePositions.size()) ? codePositions.get(i + 1)[0] : mergedText.length();
-            String context = mergedText.substring(codeEnd, Math.min(nextCodeStart, codeEnd + 200)); // 限制上下文长度
+            // 提取该取件码后面的文本（限制长度为80字符）
+            int maxContextLen = 80;
+            int contextEnd = Math.min(codeEnd + maxContextLen, mergedText.length());
+            
+            // 如果下一个取件码在范围内，截取到下一个取件码之前
+            if (i + 1 < codePositions.size()) {
+                int nextCodeStart = codePositions.get(i + 1)[0];
+                if (nextCodeStart < contextEnd) {
+                    contextEnd = nextCodeStart;
+                }
+            }
+            
+            String context = mergedText.substring(codeEnd, contextEnd);
+            
+            // 清理上下文：移除无关内容（如「创建笔记提醒」、「5月4日」等）
+            context = cleanContext(context);
             
             System.out.println("=== 取件码: " + code + ", 上下文: " + context);
             
@@ -131,6 +144,40 @@ public class OcrService {
         }
         
         return packages;
+    }
+
+    /**
+     * 清理上下文：移除无关内容
+     */
+    private String cleanContext(String context) {
+        // 移除「创建笔记提醒」及其后面的内容
+        int idx = context.indexOf("创建笔记提醒");
+        if (idx > 0) {
+            context = context.substring(0, idx);
+        }
+        
+        // 移除日期格式（如「5月4日15:52」）
+        context = context.replaceAll("\\d{1,2}月\\d{1,2}日\\d{1,2}:\\d{2}", "");
+        
+        // 移除「【近邻宝】凭」等开头的下一个快递信息
+        idx = context.indexOf("【近邻宝】凭");
+        if (idx > 0) {
+            context = context.substring(0, idx);
+        }
+        idx = context.indexOf("【驿小哥】");
+        if (idx > 0) {
+            context = context.substring(0, idx);
+        }
+        idx = context.indexOf("【兔喜生活】");
+        if (idx > 0) {
+            context = context.substring(0, idx);
+        }
+        idx = context.indexOf("【妈妈驿站】");
+        if (idx > 0) {
+            context = context.substring(0, idx);
+        }
+        
+        return context.trim();
     }
 
     /**
