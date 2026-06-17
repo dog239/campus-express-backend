@@ -172,47 +172,58 @@ public class OcrService {
      * 从上下文中提取地址
      */
     private String extractStationFromContext(String context, String fullText, int codeEnd) {
-        // 1. 优先匹配「地址：」后面的内容
+        // 1. 优先匹配「地址：」后面的内容（取最长匹配）
         Pattern addrPattern = Pattern.compile("地址\\s*[:：]?\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
         Matcher addrMatcher = addrPattern.matcher(context);
-        if (addrMatcher.find()) {
+        String longestAddr = null;
+        while (addrMatcher.find()) {
             String result = addrMatcher.group(1).trim();
-            if (result.length() > 3) {
-                return result;
+            if (result.length() > 3 && (longestAddr == null || result.length() > longestAddr.length())) {
+                longestAddr = result;
             }
         }
+        if (longestAddr != null) {
+            return longestAddr;
+        }
         
-        // 2. 匹配「凭XXX到XXX」格式
-        Pattern pingToPattern = Pattern.compile("到\\s*([^，,。！？\\n]{2,50})", Pattern.CASE_INSENSITIVE);
-        Matcher pingToMatcher = pingToPattern.matcher(context);
-        if (pingToMatcher.find()) {
-            String result = pingToMatcher.group(1).trim();
-            if (result.length() > 2) {
-                // 检查是否被截断
-                if (isTruncatedStation(result)) {
-                    // 尝试从全文中合并下一行
-                    int nextLineStart = fullText.indexOf('\n', codeEnd + context.indexOf("到") + result.length());
+        // 2. 匹配「到XXX」格式（取最长匹配）
+        Pattern toPattern = Pattern.compile("到\\s*([^，,。！？\\n]{2,50})", Pattern.CASE_INSENSITIVE);
+        Matcher toMatcher = toPattern.matcher(context);
+        String longestTo = null;
+        while (toMatcher.find()) {
+            String result = toMatcher.group(1).trim();
+            if (result.length() > 2 && (longestTo == null || result.length() > longestTo.length())) {
+                longestTo = result;
+            }
+        }
+        if (longestTo != null) {
+            // 检查是否被截断
+            if (isTruncatedStation(longestTo)) {
+                // 尝试从全文中合并下一行
+                int toPos = context.indexOf("到");
+                if (toPos > 0) {
+                    int nextLineStart = fullText.indexOf('\n', codeEnd + toPos + longestTo.length());
                     if (nextLineStart > 0) {
                         int nextLineEnd = fullText.indexOf('\n', nextLineStart + 1);
                         if (nextLineEnd < 0) nextLineEnd = fullText.length();
                         String nextLine = fullText.substring(nextLineStart + 1, nextLineEnd).trim();
-                        String merged = mergeStationLines(result, nextLine);
+                        String merged = mergeStationLines(longestTo, nextLine);
                         if (merged != null) {
                             return merged;
                         }
                     }
                 }
-                return result;
             }
+            return longestTo;
         }
         
-        // 3. 匹配已知驿站关键词
-        Pattern keywordPattern = Pattern.compile(
+        // 3. 匹配已知驿站关键词并提取后面的位置信息
+        Pattern keywordWithPosPattern = Pattern.compile(
             "(交大南门\\d+号柜[A-Z0-9]+|交大南门外近邻宝房后\\d+号[A-Z0-9]+|交通大学南门近邻宝院内货架|" +
             "交大南门近邻宝|近邻宝院内|近邻宝|妈妈驿站|菜鸟驿站|兔喜生活)",
             Pattern.CASE_INSENSITIVE
         );
-        Matcher keywordMatcher = keywordPattern.matcher(context);
+        Matcher keywordMatcher = keywordWithPosPattern.matcher(context);
         if (keywordMatcher.find()) {
             return keywordMatcher.group(1).trim();
         }
