@@ -14,8 +14,6 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -25,11 +23,6 @@ import java.util.regex.Pattern;
 
 @Service
 public class OcrService {
-
-    private static final Pattern CODE_PATTERN = Pattern.compile(
-            "\\b(?:\\d{1,2}-\\d{1,2}-\\d{3,5}|\\d{1,2}-\\d{3,5}|[A-Z]?\\d{4,8}|[A-Z]\\d{4,8})\\b",
-            Pattern.CASE_INSENSITIVE
-    );
 
     private final OcrProperties ocrProperties;
     private final RestTemplate restTemplate = new RestTemplate();
@@ -41,22 +34,9 @@ public class OcrService {
         this.ocrProperties = ocrProperties;
     }
 
-    public List<String> extractCodes(String imageBase64) {
-        if (imageBase64 == null || imageBase64.trim().isEmpty()) {
-            throw new IllegalArgumentException("请提供 imageBase64 或 imageFile");
-        }
-
-        String normalizedImage = normalizeBase64(imageBase64);
-        List<String> textLines = callBaiduOcr(normalizedImage);
-        Set<String> codes = parseCodes(textLines);
-
-        if (codes.isEmpty()) {
-            throw new IllegalStateException("未识别到取件码，请确认图片清晰、完整，并重试");
-        }
-
-        return new ArrayList<>(codes);
-    }
-
+    /**
+     * 提取所有取件码和驿站信息
+     */
     public Map<String, Object> extractPackageInfo(String imageBase64) {
         System.out.println("=== extractPackageInfo 开始执行 ===");
         System.out.println("=== imageBase64 长度: " + (imageBase64 != null ? imageBase64.length() : 0));
@@ -75,89 +55,142 @@ public class OcrService {
         String fullText = String.join("", textLines);
         System.out.println("=== OCR 识别全文: " + fullText);
         
-        String code = extractCode(fullText);
-        System.out.println("=== 提取取件码: " + code);
+        // 提取所有取件码
+        List<String> codes = extractAllCodes(fullText);
+        System.out.println("=== 提取到取件码: " + codes);
         
+        // 提取驿站名称
         String station = extractStation(fullText);
         System.out.println("=== 提取驿站: " + station);
         
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", code);
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("codes", codes);
         result.put("station", station);
+        // 兼容旧版，返回第一个取件码
+        result.put("code", codes.isEmpty() ? null : codes.get(0));
         
         System.out.println("=== 最终结果: " + result);
         return result;
     }
 
-    private String extractCode(String text) {
-        System.out.println("=== 开始提取取件码，文本长度: " + text.length());
+    /**
+     * 提取所有取件码
+     */
+    private List<String> extractAllCodes(String text) {
+        Set<String> codes = new LinkedHashSet<>();
+        System.out.println("=== 开始提取所有取件码 ===");
         
+        // 优先级高的匹配模式
         Pattern[] patterns = {
-            Pattern.compile("凭[「【]?\\s*([A-Z0-9]+-[A-Z0-9]+(?:-[A-Z0-9]+)?)\\s*[」】]?\\s*到", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("凭[「【]?\\s*(\\d{4,8})\\s*[」】]?\\s*到", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("取货码\\s*([A-Z0-9]+-[A-Z0-9]+(?:-[A-Z0-9]+)?)", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("取货码\\s*(\\d{4,8})", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("取件码\\s*([A-Z0-9]+-[A-Z0-9]+(?:-[A-Z0-9]+)?)", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("取件码\\s*(\\d{4,8})", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("可凭\\s*(\\d{4,8})\\s*到店", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("凭\\s*(\\d{4,8})\\s*到店", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\b(\\d{4,8})\\b")
+            // 取件码：M-4-6993
+            Pattern.compile("取件码\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE),
+            // 凭「87491264」到
+            Pattern.compile("凭[「【]?\\s*([A-Z0-9\\-]+)\\s*[」】]?", Pattern.CASE_INSENSITIVE),
+            // 取货码：7-1-1914
+            Pattern.compile("取货码\\s*([A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE),
+            // 备选：4-8位数字或字母数字组合
+            Pattern.compile("\\b([A-Z]?[0-9\\-]{4,12})\\b")
         };
         
         for (Pattern p : patterns) {
             Matcher m = p.matcher(text);
-            if (m.find()) {
-                String result = m.group(1).trim();
-                System.out.println("=== 匹配到取件码: " + result + " 使用模式: " + p.pattern());
-                return result;
-            }
-        }
-        
-        System.out.println("=== 未匹配到任何取件码");
-        return null;
-    }
-    
-    private String extractStation(String text) {
-        System.out.println("=== 开始提取驿站，文本长度: " + text.length());
-        
-        Pattern[] patterns = {
-            Pattern.compile("(?:取件地址|地址)[:：]?\\s*([^，,。！？\\n]{2,40})", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("到\\s*([^，,。！？\\n]{2,40}(?:号柜|柜|店|驿站))", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("到\\s*([^，,。！？\\n]{2,30})", Pattern.CASE_INSENSITIVE)
-        };
-        
-        for (Pattern p : patterns) {
-            Matcher m = p.matcher(text);
-            if (m.find()) {
-                String result = m.group(1).trim();
-                if (result.length() > 2) {
-                    System.out.println("=== 匹配到驿站: " + result);
-                    return result;
+            while (m.find()) {
+                String code = m.group(1).trim();
+                // 过滤掉太短的（如单个数字）
+                if (code.length() >= 4) {
+                    codes.add(code);
+                    System.out.println("=== 匹配到取件码: " + code);
                 }
             }
         }
         
-        String[] stations = {
-            "妈妈驿站", "近邻宝院内", "近邻宝", "菜鸟驿站",
-            "兔喜生活", "兔喜超市", "顺丰驿站", "顺丰代签收",
-            "丰巢快递柜", "丰巢", "京东驿站", "京东服务站",
-            "比比吃旁菜鸟驿站", "比比吃", "快递柜"
-        };
-        for (String s : stations) {
-            if (text.contains(s)) {
-                System.out.println("=== 匹配到已知驿站: " + s);
-                return s;
+        return new ArrayList<>(codes);
+    }
+
+    /**
+     * 提取驿站名称（优先完整地址）
+     */
+    private String extractStation(String text) {
+        System.out.println("=== 开始提取驿站 ===");
+        
+        // 1. 优先提取「地址：」后面的完整地址（取到逗号或句号前）
+        Pattern addrPattern = Pattern.compile("(?:取件地址|地址)[:：]?\\s*([^，,。！？\\n]{3,50})", Pattern.CASE_INSENSITIVE);
+        Matcher addrMatcher = addrPattern.matcher(text);
+        if (addrMatcher.find()) {
+            String result = addrMatcher.group(1).trim();
+            if (result.length() > 3) {
+                System.out.println("=== 匹配到地址: " + result);
+                return result;
             }
         }
         
-        Matcher senderMatch = Pattern.compile("【([^】]+)】").matcher(text);
-        if (senderMatch.find()) {
-            System.out.println("=== 匹配到发送方: " + senderMatch.group(1));
-            return senderMatch.group(1);
+        // 2. 匹配「到XXX柜」或「到XXX号柜」
+        Pattern cabinetPattern = Pattern.compile("到\\s*([^，,。！？\\n]{3,40}(?:号柜|柜|店|驿站|货架))", Pattern.CASE_INSENSITIVE);
+        Matcher cabinetMatcher = cabinetPattern.matcher(text);
+        if (cabinetMatcher.find()) {
+            String result = cabinetMatcher.group(1).trim();
+            if (result.length() > 3) {
+                System.out.println("=== 匹配到柜号: " + result);
+                return result;
+            }
         }
         
-        System.out.println("=== 未匹配到驿站");
+        // 3. 匹配「到XXX」或「已到XXX」
+        Pattern arrivePattern = Pattern.compile("(?:到|已到|到达|已送达)\\s*([^，,。！？\\n]{3,30})", Pattern.CASE_INSENSITIVE);
+        Matcher arriveMatcher = arrivePattern.matcher(text);
+        if (arriveMatcher.find()) {
+            String result = arriveMatcher.group(1).trim();
+            if (result.length() > 3) {
+                System.out.println("=== 匹配到到: " + result);
+                return result;
+            }
+        }
+        
+        // 4. 匹配已知驿站关键词（按优先级排序）
+        String[][] stationKeywords = {
+            {"交通大学南门近邻宝院内货架", "近邻宝院内"},
+            {"交通大学南门近邻宝", "近邻宝"},
+            {"妈妈驿站", "妈妈驿站"},
+            {"菜鸟驿站", "菜鸟驿站"},
+            {"兔喜生活", "兔喜生活"},
+            {"顺丰", "顺丰"},
+            {"丰巢", "丰巢"},
+            {"京东", "京东"},
+            {"比比吃", "比比吃"}
+        };
+        for (String[] pair : stationKeywords) {
+            if (text.contains(pair[0]) || text.contains(pair[1])) {
+                System.out.println("=== 匹配到已知驿站: " + pair[0]);
+                return pair[0];
+            }
+        }
+        
+        // 5. 提取发送方名称
+        Pattern senderPattern = Pattern.compile("【([^】]+)】");
+        Matcher senderMatcher = senderPattern.matcher(text);
+        if (senderMatcher.find()) {
+            String sender = senderMatcher.group(1).trim();
+            System.out.println("=== 匹配到发送方: " + sender);
+            return sender;
+        }
+        
+        System.out.println("=== 未匹配到驿站，返回未知驿站");
         return "未知驿站";
+    }
+
+    // ========== 以下为原有方法（保持不变） ==========
+
+    public List<String> extractCodes(String imageBase64) {
+        if (imageBase64 == null || imageBase64.trim().isEmpty()) {
+            throw new IllegalArgumentException("请提供 imageBase64 或 imageFile");
+        }
+        String normalizedImage = normalizeBase64(imageBase64);
+        List<String> textLines = callBaiduOcr(normalizedImage);
+        Set<String> codes = parseCodes(textLines);
+        if (codes.isEmpty()) {
+            throw new IllegalStateException("未识别到取件码，请确认图片清晰、完整，并重试");
+        }
+        return new ArrayList<>(codes);
     }
 
     private String normalizeBase64(String imageBase64) {
@@ -267,6 +300,17 @@ public class OcrService {
         }
     }
 
+    private Set<String> parseCodes(List<String> lines) {
+        Set<String> result = new LinkedHashSet<>();
+        for (String line : lines) {
+            Matcher matcher = CODE_PATTERN.matcher(line);
+            while (matcher.find()) {
+                result.add(matcher.group());
+            }
+        }
+        return result;
+    }
+
     private static String urlEncode(String value) {
         try {
             return URLEncoder.encode(value, StandardCharsets.UTF_8.name());
@@ -275,4 +319,9 @@ public class OcrService {
         }
     }
 
+    // CODE_PATTERN 保留用于兼容
+    private static final Pattern CODE_PATTERN = Pattern.compile(
+            "\\b(?:\\d{1,2}-\\d{1,2}-\\d{3,5}|\\d{1,2}-\\d{3,5}|[A-Z]?\\d{4,8}|[A-Z]\\d{4,8})\\b",
+            Pattern.CASE_INSENSITIVE
+    );
 }
