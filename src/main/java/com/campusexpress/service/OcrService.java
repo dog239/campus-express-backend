@@ -291,7 +291,7 @@ public class OcrService {
             }
         }
         if (longestAddr != null) {
-            return longestAddr;
+            return cleanStation(longestAddr);
         }
         
         // 2. 匹配「到XXX」格式（取最长匹配，允许跨行）
@@ -305,7 +305,7 @@ public class OcrService {
             }
         }
         if (longestTo != null) {
-            return longestTo;
+            return cleanStation(longestTo);
         }
         
         // 3. 匹配已知驿站关键词并提取后面的位置信息
@@ -320,6 +320,35 @@ public class OcrService {
         }
         
         return null;
+    }
+
+    /**
+     * 清理地址：移除多余内容
+     */
+    private String cleanStation(String station) {
+        if (station == null || station.isEmpty()) {
+            return station;
+        }
+        
+        // 移除「超24h收费」及其后面的内容
+        int idx = station.indexOf("超");
+        if (idx > 0) {
+            station = station.substring(0, idx);
+        }
+        
+        // 移除「收费」及其后面的内容
+        idx = station.indexOf("收费");
+        if (idx > 0) {
+            station = station.substring(0, idx);
+        }
+        
+        // 移除「取件」及其后面的内容
+        idx = station.indexOf("取件");
+        if (idx > 0) {
+            station = station.substring(0, idx);
+        }
+        
+        return station.trim();
     }
 
     /**
