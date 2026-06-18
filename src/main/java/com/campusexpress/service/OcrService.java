@@ -109,8 +109,11 @@ public class OcrService {
             return packages;
         }
         
-        // 时间匹配模式
-        Pattern timePattern = Pattern.compile("(\\d{1,2}月\\d{1,2}日\\s*\\d{1,2}[:：]\\d{2})", Pattern.CASE_INSENSITIVE);
+        // 时间匹配模式（支持「周X」格式）
+        Pattern timePattern = Pattern.compile(
+            "(\\d{1,2}月\\d{1,2}日\\s*(?:周[一二三四五六日])?\\s*\\d{1,2}[:：]\\d{2})",
+            Pattern.CASE_INSENSITIVE
+        );
         
         // 2. 对每个取件码，提取它后面的文本和前面的时间
         for (int i = 0; i < codePositions.size(); i++) {
@@ -171,11 +174,15 @@ public class OcrService {
 
     /**
      * 转换时间格式：3月8日09:15 -> 2026-03-08
+     * 支持格式：5月8日 周五 17:17、3月8日 周日 09:15、5月4日15:52
      */
     private String convertTimeToDate(String time) {
         try {
             // 替换全角冒号为半角
             time = time.replace("：", ":");
+            // 去除「周X」部分
+            time = time.replaceAll("周[一二三四五六日]", "").trim();
+            
             // 匹配月日和时间
             Pattern pattern = Pattern.compile("(\\d{1,2})月(\\d{1,2})日\\s*(\\d{1,2}):(\\d{2})");
             Matcher matcher = pattern.matcher(time);
