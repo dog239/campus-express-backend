@@ -255,7 +255,7 @@ public class OrderServiceImpl implements OrderService {
         if (requester != null) {
             vo.setRequesterNickname(requester.getNickname());
             vo.setRequesterAvatar(requester.getAvatar());
-            vo.setRequesterPhone(maskPhone(requester.getPhone()));
+            vo.setRequesterPhone(requester.getPhone());
         }
 
         if (order.getReceiverId() != null) {
@@ -263,7 +263,7 @@ public class OrderServiceImpl implements OrderService {
             if (receiver != null) {
                 vo.setReceiverNickname(receiver.getNickname());
                 vo.setReceiverAvatar(receiver.getAvatar());
-                vo.setReceiverPhone(maskPhone(receiver.getPhone()));
+                vo.setReceiverPhone(receiver.getPhone());
             }
         }
 
